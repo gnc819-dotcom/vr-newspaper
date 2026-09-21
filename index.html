@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Holographic Newspaper Q42 - VR Immersive</title>
+    <title>3D Newspaper - Meta Quest 3 WebXR</title>
     <style>
         body {
             margin: 0;
@@ -42,7 +42,7 @@
 </head>
 <body>
     <div id="vr-overlay">
-        <button id="enter-vr-btn" class="btn-vr">VRモード起動（没入）</button>
+        <button id="enter-vr-btn" class="btn-vr">VRモード起動（Quest 3対応）</button>
     </div>
 
     <script>
@@ -51,55 +51,126 @@
         init();
 
         function init() {
-            // 1. シーン定義（漆黒: 0,0,0）
+            // 1. シーン構築 (背景: 漆黒 RGB 0,0,0)
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000);
 
             // 2. カメラ
             camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 1.6, 1.0); // 人間の目線の高さに配置
+            camera.position.set(0, 1.6, 1.0); // 目線の高さ1.6m
 
             // 3. レンダラー
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.xr.enabled = true; // WebXR有効化
+            renderer.xr.enabled = true; // WebXRの有効化
             document.body.appendChild(renderer.domElement);
 
-            // 4. 光源
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            // 4. ライティング
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
             scene.add(ambientLight);
 
-            const dirLight = new THREE.DirectionalLight(0x00ff88, 1.5);
+            const dirLight = new THREE.DirectionalLight(0x00ff88, 1.2);
             dirLight.position.set(1, 2, 1);
             scene.add(dirLight);
 
-            // 5. 3Dホログラム新聞モデル（1:1 比率 / Q42用）
+            // 5. 新聞グループ（空間に浮遊配置）
             newspaperGroup = new THREE.Group();
-            newspaperGroup.position.set(0, 1.5, -1.0); // 目の前1mの空間に浮遊
+            newspaperGroup.position.set(0, 1.5, -1.0); // 目の前1mに配置
             scene.add(newspaperGroup);
 
-            // ベースボード
-            const baseGeo = new THREE.BoxGeometry(0.8, 0.8, 0.02);
-            const baseMat = new THREE.MeshStandardMaterial({ color: 0x111115 });
+            // --- 新聞テクスチャの動的生成（HTML5 Canvas） ---
+            const paperCanvas = document.createElement('canvas');
+            paperCanvas.width = 1024;
+            paperCanvas.height = 1024;
+            const ctx = paperCanvas.getContext('2d');
+
+            // 背景：漆黒 (RGB: 0,0,0)
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, 1024, 1024);
+
+            // 外枠ガイド（緑）
+            ctx.strokeStyle = '#00ff88';
+            ctx.lineWidth = 6;
+            ctx.strokeRect(12, 12, 1000, 1000);
+
+            // 題字エリア（右上配置）
+            ctx.fillStyle = '#00ff88';
+            ctx.fillRect(680, 40, 300, 120);
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 44px sans-serif';
+            ctx.fillText('3Dホログラム新聞', 690, 110);
+
+            // 日付・版数ライン
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '22px sans-serif';
+            ctx.fillText('2026年 朝刊 | 第1号 (Q42規格 1024x1024)', 40, 80);
+
+            // 主見出し領域（テクスチャ側ガイド）
+            ctx.fillStyle = '#00ff88';
+            ctx.font = 'bold 56px serif';
+            ctx.fillText('次世代 空間紙面UI始動', 40, 200);
+
+            // 記事本文ダミーライン（縦組み・横組み配置）
+            ctx.fillStyle = '#aaaaaa';
+            for (let i = 0; i < 12; i++) {
+                ctx.fillRect(520, 320 + (i * 35), 450, 12);
+            }
+            for (let i = 0; i < 8; i++) {
+                ctx.fillRect(40, 720 + (i * 32), 930, 10);
+            }
+
+            // CanvasをThree.jsのテクスチャへ変換
+            const paperTexture = new THREE.CanvasTexture(paperCanvas);
+
+            // --- 3Dオブジェクトのレイヤー構築 ---
+            
+            // 【Layer 1: ベース台座（紙面全体）】
+            const baseGeo = new THREE.PlaneGeometry(0.8, 0.8);
+            const baseMat = new THREE.MeshBasicMaterial({ map: paperTexture, side: THREE.DoubleSide });
             const baseMesh = new THREE.Mesh(baseGeo, baseMat);
             newspaperGroup.add(baseMesh);
 
-            // 飛び出す緑見出し
-            const titleGeo = new THREE.BoxGeometry(0.72, 0.15, 0.06);
-            const titleMat = new THREE.MeshStandardMaterial({ color: 0x00ff88, metalness: 0.4 });
+            // 【Layer 2: 飛び出す主見出し（+5cm手前）】
+            const titleGeo = new THREE.BoxGeometry(0.55, 0.08, 0.04);
+            const titleMat = new THREE.MeshStandardMaterial({ color: 0x00ff88, metalness: 0.3 });
             const titleMesh = new THREE.Mesh(titleGeo, titleMat);
-            titleMesh.position.set(0, 0.28, 0.04);
+            titleMesh.position.set(-0.1, 0.24, 0.05);
             newspaperGroup.add(titleMesh);
 
-            // 飛び出す青写真ブロック
-            const photoGeo = new THREE.BoxGeometry(0.34, 0.34, 0.08);
-            const photoMat = new THREE.MeshStandardMaterial({ color: 0x00aeff });
-            const photoMesh = new THREE.Mesh(photoGeo, photoMat);
-            photoMesh.position.set(-0.18, -0.05, 0.06);
+            // 【Layer 3: 飛び出す立体写真ブロック（+10cm手前）】
+            const photoGeo = new THREE.BoxGeometry(0.32, 0.32, 0.08);
+            const photoMat = new THREE.MeshStandardMaterial({ 0x00aeff, roughness: 0.2 });
+            
+            // 写真エリア用のグラデーションテクスチャを簡易生成
+            const photoCanvas = document.createElement('canvas');
+            photoCanvas.width = 256;
+            photoCanvas.height = 256;
+            const pCtx = photoCanvas.getContext('2d');
+            const grad = pCtx.createLinearGradient(0, 0, 256, 256);
+            grad.addColorStop(0, '#00aeff');
+            grad.addColorStop(1, '#00ff88');
+            pCtx.fillStyle = grad;
+            pCtx.fillRect(0, 0, 256, 256);
+            pCtx.fillStyle = '#ffffff';
+            pCtx.font = 'bold 24px sans-serif';
+            pCtx.fillText('3D PHOTO AREA', 30, 130);
+
+            const photoTexture = new THREE.CanvasTexture(photoCanvas);
+            const photoMaterials = [
+                new THREE.MeshStandardMaterial({ color: 0x00aeff }), // 右
+                new THREE.MeshStandardMaterial({ color: 0x00aeff }), // 左
+                new THREE.MeshStandardMaterial({ color: 0x00aeff }), // 上
+                new THREE.MeshStandardMaterial({ color: 0x00aeff }), // 下
+                new THREE.MeshStandardMaterial({ map: photoTexture }), // 正面
+                new THREE.MeshStandardMaterial({ color: 0x00aeff })  // 背面
+            ];
+
+            const photoMesh = new THREE.Mesh(photoGeo, photoMaterials);
+            photoMesh.position.set(-0.2, -0.08, 0.08);
             newspaperGroup.add(photoMesh);
 
-            // 6. WebXR 没入セッション起動
+            // 6. WebXR 没入モード起動処理
             const vrBtn = document.getElementById('enter-vr-btn');
 
             if ('xr' in navigator) {
@@ -112,15 +183,15 @@
                                 renderer.xr.setSession(session);
                                 document.getElementById('vr-overlay').style.display = 'none';
                             }).catch((err) => {
-                                alert('VRセッション開始失敗: ' + err.message);
+                                alert('VRセッション開始エラー: ' + err.message);
                             });
                         });
                     } else {
-                        vrBtn.textContent = 'WebXR没入非対応デバイスです';
+                        vrBtn.textContent = 'WebXR（Immersive-VR）非対応デバイスです';
                     }
                 });
             } else {
-                vrBtn.textContent = 'WebXR未サポートブラウザです';
+                vrBtn.textContent = 'WebXR未サポートのブラウザです';
             }
 
             renderer.setAnimationLoop(render);
@@ -135,7 +206,8 @@
 
         function render() {
             if (newspaperGroup) {
-                newspaperGroup.rotation.y += 0.005; // 低速回転
+                // VR空間内で少しずつ低速回転（視覚的立体感の確認用）
+                newspaperGroup.rotation.y += 0.003;
             }
             renderer.render(scene, camera);
         }
