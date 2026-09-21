@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Holographic Newspaper</title>
+    <title>3D Holographic Newspaper - Standalone</title>
     <style>
         body {
             margin: 0;
@@ -11,177 +11,279 @@
             width: 100vw;
             height: 100vh;
             overflow: hidden;
-            background-color: #000000; /* 漆黒 RGB: 0,0,0 */
-            font-family: sans-serif;
+            background-color: #000000; /* 漆黒 RGB:0,0,0 */
+            color: #00ff88;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
-        #canvas-container {
+        #vr-button {
+            padding: 20px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #00ff88;
+            background: #111;
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
+            z-index: 100;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
         }
-        #vr-button {
-            position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 16px 32px;
-            border: 2px solid #00ff88;
-            border-radius: 8px;
-            background: rgba(0, 0, 0, 0.9);
-            color: #00ff88;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            z-index: 999;
-            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
-        }
     </style>
-    <!-- Three.js 安定版ライブラリ -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-    <button id="vr-button">START VR (3D表示)</button>
-    <div id="canvas-container"></div>
+    <button id="vr-button">START VR (完全単体版)</button>
+    <canvas id="glcanvas"></canvas>
 
     <script>
-        let scene, camera, renderer;
-        let newspaperGroup, pageMesh;
-        let isAnimating = false;
+        const canvas = document.getElementById('glcanvas');
+        const gl = canvas.getContext('webgl', { xrCompatible: true });
 
-        // 物理仕様: 1:1 比率 (1.0m x 1.0m)
-        const size = 1.0; 
+        // フォールバック用簡易行列演算
+        function createPerspectiveMatrix(fov, aspect, near, far) {
+            const f = 1.0 / Math.tan(fov / 2);
+            const rangeInv = 1.0 / (near - far);
+            return new Float32Array([
+                f / aspect, 0, 0, 0,
+                0, f, 0, 0,
+                0, 0, (near + far) * rangeInv, -1,
+                0, 0, near * far * rangeInv * 2, 0
+            ]);
+        }
 
-        init();
-        animate();
-
-        function init() {
-            const container = document.getElementById('canvas-container');
-
-            // 1. シーン構築 (漆黒背景)
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x000000);
-
-            // 2. カメラ設定
-            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 1.2, 1.5);
-
-            // 3. レンダラー設定
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.xr.enabled = true;
-            renderer.shadowMap.enabled = true;
-            container.appendChild(renderer.domElement);
-
-            // 4. ライティング（3D陰影の強調）
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-            scene.add(ambientLight);
-
-            const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-            dirLight.position.set(1, 2, 2);
-            dirLight.castShadow = true;
-            scene.add(dirLight);
-
-            const pointLight = new THREE.PointLight(0x00ff88, 2, 3);
-            pointLight.position.set(-0.8, 1.5, 0.5);
-            scene.add(pointLight);
-
-            // 5. 3D新聞構造体の構築
-            newspaperGroup = new THREE.Group();
-            newspaperGroup.position.set(0, 1.2, -0.5); // 目の前50cmに配置
-            scene.add(newspaperGroup);
-
-            // ① 新聞の台座（厚みのある3D構造）
-            const baseGeo = new THREE.BoxGeometry(size, size, 0.02); // 20mmの厚み
-            const baseMat = new THREE.MeshStandardMaterial({ color: 0x151518, roughness: 0.5 });
-            pageMesh = new THREE.Mesh(baseGeo, baseMat);
-            pageMesh.castShadow = true;
-            newspaperGroup.add(pageMesh);
-
-            // ② 飛び出す「毎日新聞」立体見出し（前面へ4cm突起）
-            const titleGeo = new THREE.BoxGeometry(size * 0.9, 0.18, 0.04);
-            const titleMat = new THREE.MeshStandardMaterial({ color: 0x00ff88, metalness: 0.3, roughness: 0.2 });
-            const titleMesh = new THREE.Mesh(titleGeo, titleMat);
-            titleMesh.position.set(0, size * 0.35, 0.03);
-            newspaperGroup.add(titleMesh);
-
-            // ③ 3Dホログラム写真エリア（前面へ6cm突起）
-            const photoGeo = new THREE.BoxGeometry(size * 0.42, size * 0.42, 0.06);
-            const photoMat = new THREE.MeshStandardMaterial({ color: 0x00aeff, roughness: 0.1 });
-            const photoMesh = new THREE.Mesh(photoGeo, photoMat);
-            photoMesh.position.set(-size * 0.22, -0.05, 0.04);
-            newspaperGroup.add(photoMesh);
-
-            // ④ 記事コラム（立体ラインレイヤー）
-            for (let i = 0; i < 7; i++) {
-                const lineGeo = new THREE.BoxGeometry(size * 0.4, 0.025, 0.015);
-                const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-                const lineMesh = new THREE.Mesh(lineGeo, lineMat);
-                lineMesh.position.set(size * 0.22, size * 0.15 - i * 0.055, 0.02);
-                newspaperGroup.add(lineMesh);
+        // シェーダー定義（手前に立体的に突き出る緑と青のホログラム板）
+        const vsSource = `
+            attribute vec4 aVertexPosition;
+            attribute vec4 aColor;
+            uniform mat4 uModelViewMatrix;
+            uniform mat4 uProjectionMatrix;
+            varying lowp vec4 vColor;
+            void main(void) {
+                gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+                vColor = aColor;
             }
+        `;
 
-            // ⑤ 空間の立体視を強調するホログラムリング
-            const ringGeo = new THREE.TorusGeometry(0.8, 0.005, 16, 100);
-            const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, wireframe: true });
-            const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-            ringMesh.rotation.x = Math.PI / 2;
-            ringMesh.position.set(0, -size * 0.5 - 0.1, 0);
-            newspaperGroup.add(ringMesh);
-
-            // 6. WebXR (VR) 起動処理
-            const vrBtn = document.getElementById('vr-button');
-            if ('xr' in navigator) {
-                navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
-                    if (supported) {
-                        vrBtn.addEventListener('click', () => {
-                            navigator.xr.requestSession('immersive-vr').then((session) => {
-                                renderer.xr.setSession(session);
-                                vrBtn.style.display = 'none';
-                            });
-                        });
-                    } else {
-                        vrBtn.textContent = 'VR未対応ブラウザです';
-                    }
-                });
+        const fsSource = `
+            varying lowp vec4 vColor;
+            void main(void) {
+                gl_FragColor = vColor;
             }
+        `;
 
-            window.addEventListener('resize', onWindowResize);
-            window.addEventListener('pointerdown', startInteraction);
-
-            const c1 = renderer.xr.getController(0);
-            c1.addEventListener('selectstart', startInteraction);
-            scene.add(c1);
-
-            const c2 = renderer.xr.getController(1);
-            c2.addEventListener('selectstart', startInteraction);
-            scene.add(c2);
+        function loadShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            return shader;
         }
 
-        function startInteraction() {
-            isAnimating = true;
+        const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
+        const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+        const shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        const programInfo = {
+            program: shaderProgram,
+            attribLocations: {
+                vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+                color: gl.getAttribLocation(shaderProgram, 'aColor'),
+            },
+            uniformLocations: {
+                projectionMatrix: gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
+                modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
+            },
+        };
+
+        // 3D立体構造体データ (新聞台座 + 飛び出す見出し + 立体写真ブロック)
+        const positions = new Float32Array([
+            // ベース新聞紙 (黒/灰) - 1:1 比率
+            -0.5,  0.5, -0.5,   0.5,  0.5, -0.5,  -0.5, -0.5, -0.5,   0.5, -0.5, -0.5,
+            // 飛び出す緑の立体見出し (手前 z=-0.42 に突出)
+            -0.4,  0.4, -0.42,  0.4,  0.4, -0.42, -0.4,  0.25, -0.42,  0.4,  0.25, -0.42,
+            // 飛び出す青の立体写真ブロック (手前 z=-0.40 に強く突出)
+            -0.4,  0.15, -0.40, 0.0,  0.15, -0.40, -0.4, -0.3,  -0.40, 0.0, -0.3,  -0.40
+        ]);
+
+        const colors = new Float32Array([
+            // ベース (ダークグレー)
+            0.1, 0.1, 0.12, 1,  0.1, 0.1, 0.12, 1,  0.1, 0.1, 0.12, 1,  0.1, 0.1, 0.12, 1,
+            // 飛び出す見出し (ネオングリーン)
+            0.0, 1.0, 0.53, 1,  0.0, 1.0, 0.53, 1,  0.0, 1.0, 0.53, 1,  0.0, 1.0, 0.53, 1,
+            // 飛び出す写真 (シアンブルー)
+            0.0, 0.68, 1.0, 1,  0.0, 0.68, 1.0, 1,  0.0, 0.68, 1.0, 1,  0.0, 0.68, 1.0, 1
+        ]);
+
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+        const colorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, colorQuest 3内のブラウザで画面が真っ黒のまま変わらない場合、原因は「スクリプトエラー（外部ライブラリの読み込み失敗）」または「ブラウザのキャッシュ（古いコードの読み込み）」です。
+
+これを確実に回避するため、外部からのライブラリ読み込みを一切排除し、**Meta Quest Browser単体で確実に3D物体を描画できるHTML/CSS/JS統合コード（外部読み込み完全ゼロ版）**を作成しました。
+
+---
+
+### 原因と対策
+* **外部ライブラリ（Three.jsなど）の読み込みエラー**: ネット環境やCDNのブロックにより、ライブラリが読み込めず黒画面で停止していた可能性があります。
+* **対 策**: 外部ライブラリに一切依存せず、ブラウザ標準の3D機能（WebGL）のみを用いて直接立体を描画します。
+
+---
+
+### 修正コード（完全自己完結型 3D表示コード）
+
+以下のコードをコピーし、PCのGitHub上で `index.html` の全コードと置き換えて保存（Commit changes）してください。
+
+```html
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Hologram Newspaper Direct WebGL</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #000000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #00ff88;
+            font-family: sans-serif;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            text-align: center;
+            z-index: 10;
+            background: rgba(0,0,0,0.8);
+            padding: 15px 25px;
+            border: 1px solid #00ff88;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui-overlay">
+        <h2>3D Hologram Newspaper</h2>
+        <p>画面をタップまたはドラッグすると3D構造体が回転します</p>
+    </div>
+    <canvas id="glcanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('glcanvas');
+        const gl = canvas.getContext('webgl');
+
+        if (!gl) {
+            alert('WebGL未対応です');
         }
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+        // 画面サイズ調整
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            gl.viewport(0, 0, canvas.width, canvas.height);
         }
+        window.addEventListener('resize', resize);
+        resize();
 
-        function animate() {
-            renderer.setAnimationLoop(render);
-        }
-
-        function render() {
-            // タップまたはトリガーで3D新聞がゆったり回転し、立体の深み（両眼視差）を体感
-            if (isAnimating && newspaperGroup) {
-                newspaperGroup.rotation.y += 0.02;
-                if (newspaperGroup.rotation.y >= Math.PI * 2) {
-                    newspaperGroup.rotation.y = 0;
-                    isAnimating = false;
-                }
+        // 頂点シェーダー (立体位置計算)
+        const vsSource = `
+            attribute vec4 aVertexPosition;
+            attribute vec4 aVertexColor;
+            uniform mat4 uModelViewMatrix;
+            uniform mat4 uProjectionMatrix;
+            varying lowp vec4 vColor;
+            void main(void) {
+                gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+                vColor = aVertexColor;
             }
-            renderer.render(scene, camera);
+        `;
+
+        // フラグメントシェーダー (色描画)
+        const fsSource = `
+            varying lowp vec4 vColor;
+            void main(void) {
+                gl_FragColor = vColor;
+            }
+        `;
+
+        function loadShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            return shader;
         }
-    </script>
-</body>
-</html>
+
+        const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
+        const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+        const shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        const programInfo = {
+            program: shaderProgram,
+            attribLocations: {
+                vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+                vertexColor: gl.getAttribLocation(shaderProgram, 'aVertexColor'),
+            },
+            uniformLocations: {
+                projectionMatrix: gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
+                modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
+            },
+        };
+
+        // 立体新聞オブジェクト（立体台座 + 飛び出す見出し構造）の頂点定義
+        const positions = [
+            // 前面 (新聞ベース - 暗いグレー)
+            -0.7,  0.7,  0.1,   0.7,  0.7,  0.1,   0.7, -0.7,  0.1,  -0.7, -0.7,  0.1,
+            // 飛び出しタイトルブロック (鮮やかなグリーン)
+            -0.6,  0.6,  0.3,   0.6,  0.6,  0.3,   0.6,  0.3,  0.3,  -0.6,  0.3,  0.3,
+            // 飛び出し写真ブロック (ブルー)
+            -0.5,  0.1,  0.4,   0.0,  0.1,  0.4,   0.0, -0.5,  0.4,  -0.5, -0.5,  0.4,
+        ];
+
+        const colors = [
+            // ベース色 (グレー)
+            0.1, 0.1, 0.1, 1.0,  0.1, 0.1, 0.1, 1.0,  0.1, 0.1, 0.1, 1.0,  0.1, 0.1, 0.1, 1.0,
+            // タイトル色 (グリーン)
+            0.0, 1.0, 0.5, 1.0,  0.0, 1.0, 0.5, 1.0,  0.0, 1.0, 0.5, 1.0,  0.0, 1.0, 0.5, 1.0,
+            // 写真エリア色 (ブルー)
+            0.0, 0.6, 1.0, 1.0,  0.0, 0.6, 1.0, 1.0,  0.0, 0.6, 1.0, 1.0,  0.0, 0.6, 1.0, 1.0,
+        ];
+
+        const indices = [
+            0,  1,  2,      0,  2,  3,    // ベース
+            4,  5,  6,      4,  6,  7,    // タイトル
+            8,  9, 10,      8, 10, 11     // 写真
+        ];
+
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+        const colorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array
