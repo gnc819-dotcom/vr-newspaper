@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Hologram Newspaper - Fallback Mode</title>
+    <title>3D Holographic Newspaper Q42 - VR Immersive</title>
     <style>
         body {
             margin: 0;
@@ -12,121 +12,119 @@
             height: 100vh;
             overflow: hidden;
             background-color: #000000; /* 漆黒 RGB:0,0,0 */
-            color: #00ff88;
             font-family: sans-serif;
         }
-        #canvas-container {
-            width: 100%;
-            height: 100%;
-        }
-        #status-ui {
+        #vr-overlay {
             position: absolute;
-            top: 20px;
+            top: 50%;
             left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.85);
-            border: 1px solid #00ff88;
-            padding: 12px 24px;
-            border-radius: 8px;
+            transform: translate(-50%, -50%);
             text-align: center;
             z-index: 1000;
+        }
+        .btn-vr {
+            padding: 20px 40px;
+            font-size: 22px;
+            font-weight: bold;
+            color: #00ff88;
+            background: #000000;
+            border: 3px solid #00ff88;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 0 25px rgba(0, 255, 136, 0.8);
+        }
+        .btn-vr:hover {
+            background: #00ff88;
+            color: #000000;
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-    <div id="status-ui">
-        <h4 style="margin:0 0 8px 0;">3Dホログラム新聞（Q42立体表示）</h4>
-        <p style="margin:0; font-size: 14px; color: #ffffff;">画面をドラッグすると3Dモデルを自由に回転・拡大できます</p>
+    <div id="vr-overlay">
+        <button id="enter-vr-btn" class="btn-vr">VRモード起動（没入）</button>
     </div>
-    <div id="canvas-container"></div>
 
     <script>
         let scene, camera, renderer, newspaperGroup;
-        let isMouseDown = false;
-        let mouseX = 0, mouseY = 0;
 
         init();
 
         function init() {
-            const container = document.getElementById('canvas-container');
-
-            // 1. 漆黒背景 (RGB: 0,0,0)
+            // 1. シーン定義（漆黒: 0,0,0）
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000);
 
-            // 2. カメラ設定 (1:1 正方形エリア対応)
+            // 2. カメラ
             camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 0, 2.0);
+            camera.position.set(0, 1.6, 1.0); // 人間の目線の高さに配置
 
             // 3. レンダラー
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            container.appendChild(renderer.domElement);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.xr.enabled = true; // WebXR有効化
+            document.body.appendChild(renderer.domElement);
 
-            // 4. ライティング
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            // 4. 光源
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
             scene.add(ambientLight);
 
             const dirLight = new THREE.DirectionalLight(0x00ff88, 1.5);
-            dirLight.position.set(1, 2, 2);
+            dirLight.position.set(1, 2, 1);
             scene.add(dirLight);
 
-            // 5. 3Dホログラム新聞構造体 (1:1 比率)
+            // 5. 3Dホログラム新聞モデル（1:1 比率 / Q42用）
             newspaperGroup = new THREE.Group();
+            newspaperGroup.position.set(0, 1.5, -1.0); // 目の前1mの空間に浮遊
             scene.add(newspaperGroup);
 
-            // 台座 (1.0m x 1.0m 正方形)
-            const baseGeo = new THREE.BoxGeometry(1.0, 1.0, 0.02);
-            const baseMat = new THREE.MeshStandardMaterial({ color: 0x111115, roughness: 0.5 });
+            // ベースボード
+            const baseGeo = new THREE.BoxGeometry(0.8, 0.8, 0.02);
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0x111115 });
             const baseMesh = new THREE.Mesh(baseGeo, baseMat);
             newspaperGroup.add(baseMesh);
 
-            // 飛び出す見出し (緑: RGB 0, 255, 136)
-            const titleGeo = new THREE.BoxGeometry(0.9, 0.18, 0.08);
-            const titleMat = new THREE.MeshStandardMaterial({ color: 0x00ff88, metalness: 0.3 });
+            // 飛び出す緑見出し
+            const titleGeo = new THREE.BoxGeometry(0.72, 0.15, 0.06);
+            const titleMat = new THREE.MeshStandardMaterial({ color: 0x00ff88, metalness: 0.4 });
             const titleMesh = new THREE.Mesh(titleGeo, titleMat);
-            titleMesh.position.set(0, 0.35, 0.05);
+            titleMesh.position.set(0, 0.28, 0.04);
             newspaperGroup.add(titleMesh);
 
-            // 飛び出す写真エリア (青)
-            const photoGeo = new THREE.BoxGeometry(0.42, 0.42, 0.12);
-            const photoMat = new THREE.MeshStandardMaterial({ color: 0x00aeff, roughness: 0.2 });
+            // 飛び出す青写真ブロック
+            const photoGeo = new THREE.BoxGeometry(0.34, 0.34, 0.08);
+            const photoMat = new THREE.MeshStandardMaterial({ color: 0x00aeff });
             const photoMesh = new THREE.Mesh(photoGeo, photoMat);
-            photoMesh.position.set(-0.22, -0.05, 0.08);
+            photoMesh.position.set(-0.18, -0.05, 0.06);
             newspaperGroup.add(photoMesh);
 
-            // 記事ライン
-            for (let i = 0; i < 6; i++) {
-                const lineGeo = new THREE.BoxGeometry(0.4, 0.025, 0.03);
-                const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-                const lineMesh = new THREE.Mesh(lineGeo, lineMat);
-                lineMesh.position.set(0.22, 0.15 - i * 0.06, 0.03);
-                newspaperGroup.add(lineMesh);
+            // 6. WebXR 没入セッション起動
+            const vrBtn = document.getElementById('enter-vr-btn');
+
+            if ('xr' in navigator) {
+                navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+                    if (supported) {
+                        vrBtn.addEventListener('click', () => {
+                            navigator.xr.requestSession('immersive-vr', {
+                                optionalFeatures: ['local-floor', 'bounded-floor']
+                            }).then((session) => {
+                                renderer.xr.setSession(session);
+                                document.getElementById('vr-overlay').style.display = 'none';
+                            }).catch((err) => {
+                                alert('VRセッション開始失敗: ' + err.message);
+                            });
+                        });
+                    } else {
+                        vrBtn.textContent = 'WebXR没入非対応デバイスです';
+                    }
+                });
+            } else {
+                vrBtn.textContent = 'WebXR未サポートブラウザです';
             }
 
-            // 6. ドラッグによる回転操作（XRセッション非依存）
-            window.addEventListener('pointerdown', (e) => {
-                isMouseDown = true;
-                mouseX = e.clientX;
-                mouseY = e.clientY;
-            });
-
-            window.addEventListener('pointermove', (e) => {
-                if (!isMouseDown) return;
-                const deltaX = e.clientX - mouseX;
-                const deltaY = e.clientY - mouseY;
-                newspaperGroup.rotation.y += deltaX * 0.01;
-                newspaperGroup.rotation.x += deltaY * 0.01;
-                mouseX = e.clientX;
-                mouseY = e.clientY;
-            });
-
-            window.addEventListener('pointerup', () => { isMouseDown = false; });
+            renderer.setAnimationLoop(render);
             window.addEventListener('resize', onWindowResize);
-
-            animate();
         }
 
         function onWindowResize() {
@@ -135,10 +133,9 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        function animate() {
-            requestAnimationFrame(animate);
-            if (!isMouseDown) {
-                newspaperGroup.rotation.y += 0.005; // 自動低速回転
+        function render() {
+            if (newspaperGroup) {
+                newspaperGroup.rotation.y += 0.005; // 低速回転
             }
             renderer.render(scene, camera);
         }
