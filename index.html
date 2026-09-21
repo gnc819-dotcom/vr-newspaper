@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Holographic Newspaper</title>
+    <title>3D Volumetric Holographic Newspaper</title>
     <style>
         body {
             margin: 0;
@@ -18,104 +18,37 @@
             width: 100%;
             height: 100%;
         }
-        #info-overlay {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: #00ff88;
-            font-family: monospace;
-            font-size: 14px;
-            pointer-events: none;
-            z-index: 10;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 12px 18px;
-            border-radius: 8px;
-            border: 1px solid #00ff88;
-        }
         #vr-button {
             position: absolute;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            padding: 12px 24px;
-            border: 1px solid #fff;
-            border-radius: 4px;
-            background: rgba(0,0,0,0.8);
-            color: #fff;
-            font-size: 14px;
+            padding: 14px 28px;
+            border: 1px solid #00ff88;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.85);
+            color: #00ff88;
+            font-size: 16px;
             font-weight: bold;
             cursor: pointer;
             z-index: 999;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
         }
     </style>
-    <!-- Three.js Bundle (外部通信なし) -->
     <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 </head>
 <body>
-    <div id="info-overlay">
-        <div>[3D Hologram Newspaper]</div>
-        <div>- Click / Press Trigger to Turn Page</div>
-        <div>- Local Standalone Mode</div>
-    </div>
-    <button id="vr-button">START VR</button>
+    <button id="vr-button">START VR (3D Volumetric)</button>
     <div id="canvas-container"></div>
 
     <script>
-        // --- 1. Base64 画像データ格納部 ---
-        const BASE64_PAGE_1 = ""; // 1ページ目 (表) Base64データ
-        const BASE64_PAGE_2 = ""; // 2ページ目 (裏) Base64データ
-
-        // --- 2. ダミー新聞テクスチャ生成 ---
-        function createFallbackNewspaperTexture(pageNumber, titleText) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 1024;
-            canvas.height = 1024; // 1:1 比率
-            const ctx = canvas.getContext('2d');
-
-            ctx.fillStyle = '#f4f1ea';
-            ctx.fillRect(0, 0, 1024, 1024);
-
-            ctx.fillStyle = '#111111';
-            ctx.fillRect(40, 40, 944, 100);
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 52px serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(titleText, 512, 110);
-
-            ctx.fillStyle = '#ff0055';
-            ctx.font = 'bold 36px monospace';
-            ctx.fillText(`- PAGE ${pageNumber} -`, 512, 180);
-
-            ctx.fillStyle = '#333333';
-            ctx.strokeStyle = '#cccccc';
-            ctx.lineWidth = 2;
-
-            for (let col = 0; col < 3; col++) {
-                const x = 60 + col * 310;
-                ctx.strokeRect(x, 220, 290, 740);
-                ctx.fillStyle = '#222222';
-                ctx.fillRect(x + 10, 240, 270, 40);
-                ctx.fillStyle = '#666666';
-                for (let line = 0; line < 25; line++) {
-                    ctx.fillRect(x + 10, 300 + line * 26, 270, 10);
-                }
-            }
-
-            const texture = new THREE.CanvasTexture(canvas);
-            return texture;
-        }
-
-        // --- 3. メインシーン初期化 ---
         let scene, camera, renderer;
-        let pageGeometry, frontMesh, backMesh;
-        let isFlipped = false;
+        let mainGroup, paperMesh, particles;
         let isAnimating = false;
         let animationProgress = 0;
 
         const width = 1.2;
         const height = 1.2; // 1:1比率
-        const segX = 60;
-        const segY = 30;
 
         init();
         animate();
@@ -127,46 +60,82 @@
             scene.background = new THREE.Color(0x000000); // 漆黒
 
             camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 1.2, 1.8);
+            camera.position.set(0, 1.2, 1.6);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.xr.enabled = true;
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             container.appendChild(renderer.domElement);
 
-            // ライティング
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+            // ライティング（立体感を生む影の配置）
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
 
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            dirLight.position.set(2, 4, 3);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            dirLight.position.set(1.5, 3, 2);
+            dirLight.castShadow = true;
             scene.add(dirLight);
 
-            // テクスチャ設定
-            const textureLoader = new THREE.TextureLoader();
-            const frontTexture = BASE64_PAGE_1 ? textureLoader.load(BASE64_PAGE_1) : createFallbackNewspaperTexture(1, "毎日新聞 - 表紙");
-            const backTexture = BASE64_PAGE_2 ? textureLoader.load(BASE64_PAGE_2) : createFallbackNewspaperTexture(2, "毎日新聞 - 2面");
+            const blueLight = new THREE.PointLight(0x00aeff, 1.5, 5);
+            blueLight.position.set(-1, 1, 0.5);
+            scene.add(blueLight);
 
-            // ジオメトリ（メッシュ分割）
-            pageGeometry = new THREE.PlaneGeometry(width, height, segX, segY);
-            pageGeometry.translate(width / 2, 0, 0); // 左端軸
+            // 3Dグループ構築
+            mainGroup = new THREE.Group();
+            mainGroup.position.set(0, 1.2, -0.2);
+            scene.add(mainGroup);
 
-            const group = new THREE.Group();
-            group.position.set(-width / 2, 1.2, 0);
-            scene.add(group);
+            // --- 1. 土台となる紙ベース（厚みを持つ3Dボックス構造） ---
+            const baseGeo = new THREE.BoxGeometry(width, height, 0.015); // 15mmの厚み
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0x111115, roughness: 0.6 });
+            paperMesh = new THREE.Mesh(baseGeo, baseMat);
+            paperMesh.castShadow = true;
+            paperMesh.receiveShadow = true;
+            mainGroup.add(paperMesh);
 
-            const frontMaterial = new THREE.MeshStandardMaterial({ map: frontTexture, side: THREE.FrontSide, roughness: 0.5 });
-            const backMaterial = new THREE.MeshStandardMaterial({ map: backTexture, side: THREE.FrontSide, roughness: 0.5 });
+            // --- 2. 飛び出す立体レイヤー（タイトル見出し） ---
+            const titleGeo = new THREE.BoxGeometry(width * 0.9, 0.15, 0.04); // 前方に飛び出す厚み
+            const titleMat = new THREE.MeshStandardMaterial({ color: 0x00ff88, roughness: 0.2, metalness: 0.5 });
+            const titleMesh = new THREE.Mesh(titleGeo, titleMat);
+            titleMesh.position.set(0, height * 0.35, 0.03); // 紙面より手前に配置
+            mainGroup.add(titleMesh);
 
-            frontMesh = new THREE.Mesh(pageGeometry, frontMaterial);
-            group.add(frontMesh);
+            // --- 3. 飛び出す立体画像ブロック ---
+            const imgGeo = new THREE.BoxGeometry(width * 0.4, height * 0.4, 0.05);
+            const imgMat = new THREE.MeshStandardMaterial({ color: 0x00aeff, roughness: 0.3 });
+            const imgMesh = new THREE.Mesh(imgGeo, imgMat);
+            imgMesh.position.set(-width * 0.22, 0, 0.04); // 手前に迫り出す
+            mainGroup.add(imgMesh);
 
-            backMesh = new THREE.Mesh(pageGeometry, backMaterial);
-            backMesh.rotation.y = Math.PI;
-            group.add(backMesh);
+            // --- 4. 浮遊するテキストコラムライン ---
+            for (let i = 0; i < 6; i++) {
+                const lineGeo = new THREE.BoxGeometry(width * 0.4, 0.03, 0.01);
+                const lineMat = new THREE.MeshStandardMaterial({ color: 0xdddddd });
+                const lineMesh = new THREE.Mesh(lineGeo, lineMat);
+                lineMesh.position.set(width * 0.22, height * 0.15 - i * 0.06, 0.02);
+                mainGroup.add(lineMesh);
+            }
 
-            // VR ボタン設定
+            // --- 5. 空間に漂うホログラム粒子（3D奥行き強調） ---
+            const particleCount = 200;
+            const pGeo = new THREE.BufferGeometry();
+            const pPositions = new Float32Array(particleCount * 3);
+
+            for (let i = 0; i < particleCount * 3; i += 3) {
+                pPositions[i] = (Math.random() - 0.5) * 3;
+                pPositions[i + 1] = (Math.random() - 0.5) * 3 + 1.2;
+                pPositions[i + 2] = (Math.random() - 0.5) * 3;
+            }
+
+            pGeo.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+            const pMat = new THREE.PointsMaterial({ color: 0x00ff88, size: 0.015, transparent: true, opacity: 0.7 });
+            particles = new THREE.Points(pGeo, pMat);
+            scene.add(particles);
+
+            // VR設定
             const vrBtn = document.getElementById('vr-button');
             if ('xr' in navigator) {
                 navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
@@ -177,50 +146,25 @@
                                 vrBtn.style.display = 'none';
                             });
                         });
-                    } else {
-                        vrBtn.textContent = 'VR NOT SUPPORTED';
                     }
                 });
             }
 
-            // 操作イベント
             window.addEventListener('resize', onWindowResize);
-            window.addEventListener('pointerdown', startFlip);
+            window.addEventListener('pointerdown', triggerInteraction);
 
-            // コントローラー
-            const controller1 = renderer.xr.getController(0);
-            controller1.addEventListener('selectstart', startFlip);
-            scene.add(controller1);
+            const c1 = renderer.xr.getController(0);
+            c1.addEventListener('selectstart', triggerInteraction);
+            scene.add(c1);
 
-            const controller2 = renderer.xr.getController(1);
-            controller2.addEventListener('selectstart', startFlip);
-            scene.add(controller2);
+            const c2 = renderer.xr.getController(1);
+            c2.addEventListener('selectstart', triggerInteraction);
+            scene.add(c2);
         }
 
-        function startFlip() {
+        function triggerInteraction() {
             if (isAnimating) return;
             isAnimating = true;
-        }
-
-        function updatePaperDeformation(progress) {
-            const positionAttribute = pageGeometry.attributes.position;
-            const angle = progress * Math.PI;
-            const curlAmount = Math.sin(progress * Math.PI); // めくり時のしなやかさ
-
-            for (let i = 0; i < positionAttribute.count; i++) {
-                const x = (i % (segX + 1)) * (width / segX);
-                const normalizedX = x / width;
-
-                const curlOffset = Math.sin(normalizedX * Math.PI) * curlAmount * 0.18;
-
-                const currentX = x * Math.cos(angle) + curlOffset * Math.sin(angle);
-                const currentZ = -x * Math.sin(angle) + curlOffset * Math.cos(angle);
-
-                positionAttribute.setXYZ(i, currentX, positionAttribute.getY(i), currentZ);
-            }
-
-            positionAttribute.needsUpdate = true;
-            pageGeometry.computeVertexNormals();
         }
 
         function onWindowResize() {
@@ -234,27 +178,22 @@
         }
 
         function render() {
+            // ホログラム粒子のゆらめき
+            if (particles) {
+                particles.rotation.y += 0.001;
+            }
+
+            // 回転インタラクション（視差効果で立体感を体感）
             if (isAnimating) {
-                if (!isFlipped) {
-                    animationProgress += 0.02;
-                    if (animationProgress >= 1) {
-                        animationProgress = 1;
-                        isAnimating = false;
-                        isFlipped = true;
-                    }
-                } else {
-                    animationProgress -= 0.02;
-                    if (animationProgress <= 0) {
-                        animationProgress = 0;
-                        isAnimating = false;
-                        isFlipped = false;
-                    }
+                mainGroup.rotation.y += 0.03;
+                if (mainGroup.rotation.y >= Math.PI * 2) {
+                    mainGroup.rotation.y = 0;
+                    isAnimating = false;
                 }
-                updatePaperDeformation(animationProgress);
             }
 
             renderer.render(scene, camera);
         }
     </script>
 </body>
-</html>
+</html>a
