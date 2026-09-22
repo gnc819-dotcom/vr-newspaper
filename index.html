@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Mainichi Shimbun - Absolute Real Photo WebXR</title>
+    <title>3D Mainichi Shimbun - Direct Photo Texture WebXR</title>
     <style>
         body {
             margin: 0;
@@ -59,7 +59,7 @@
     <div id="vr-overlay">
         <button id="enter-xr-btn" class="btn-xr">🥽 空間ホログラムWebXR起動</button>
     </div>
-    <div id="info-ui">実写画像絶対表示版：2面をめくるとお送りいただいた実写サッポロビール広告が目の前に飛び出します</div>
+    <div id="info-ui">実写真ダイレクト読込版：2面をめくると実写真サッポロビール広告が飛び出します</div>
 
     <script>
         let scene, camera, renderer, hologramStage;
@@ -76,14 +76,14 @@
         let controller1, controller2;
         let isAdHovered = false;
 
-        let realBeerImg, realBeerTexture;
+        let realPhotoImg, realPhotoTexture;
         let page2Canvas, page2Ctx, page2Texture;
 
         init();
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x000000); // 漆黒 RGB:0,0,0
+            scene.background = new THREE.Color(0x000000); // 完全漆黒 RGB:0,0,0
 
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
             camera.position.set(0, 1.4, 1.5);
@@ -109,13 +109,9 @@
             backLight.position.set(-2, 1, -2);
             scene.add(backLight);
 
-            // インライン実写キャンバス生成
-            createInlineRealBeerCanvas();
-
+            // 64x64 高密度メッシュ（しなやかな紙めくり用）
             const width = 1.0;
             const height = 1.35;
-
-            // 64x64 高密度メッシュ（しなやかな紙めくり用）
             page1Geo = new THREE.PlaneGeometry(width, height, 64, 64);
             page1Geo.translate(width / 2, 0, 0);
             origPositions = page1Geo.attributes.position.clone();
@@ -148,7 +144,10 @@
             createLivePhotoArea();
 
             // 2面 実写サッポロビール 3Dオブジェクト
-            createExactRealBeerAd();
+            createDirectRealPhotoBeerAd();
+
+            // 【重要】送信いただいた実写写真をロードして貼り付け
+            loadRealPhotoTexture();
 
             // WebXR入力設定
             setupXRControllers();
@@ -165,68 +164,23 @@
             renderer.setAnimationLoop(render);
         }
 
-        // 送信画像ビジュアルを完全にリアルタイム描画生成する（通信ブロックゼロ）
-        function createInlineRealBeerCanvas() {
-            const cvs = document.createElement('canvas');
-            cvs.width = 1850; cvs.height = 640;
-            const ctx = cvs.getContext('2d');
-
-            // 背景グラデーション（冷気飛沫）
-            const grad = ctx.createLinearGradient(0, 0, 1850, 0);
-            grad.addColorStop(0, '#0a0a0a');
-            grad.addColorStop(0.5, '#1e1400');
-            grad.addColorStop(1, '#ff9900');
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, 1850, 640);
-
-            // キャッチコピー
-            ctx.fillStyle = '#ffffff'; ctx.font = 'bold 68px serif';
-            ctx.fillText('サッポロビールで', 80, 95);
-            ctx.fillStyle = '#ffd700'; ctx.font = 'bold 88px serif';
-            ctx.fillText('今日を最高の一日に', 80, 200);
-
-            // 実写ラインナップ（ゴールドスター、ヱビス、黒ラベル、麦とホップ、極ZERO）
-            drawRealCan(ctx, 120, 310, 150, 260, '#d4af37', 'GOLD STAR');
-            drawRealCan(ctx, 290, 290, 170, 280, '#ffcc00', 'YEBISU');
-            drawRealCan(ctx, 480, 260, 200, 310, '#ffffff', '★ 黒ラベル', true); // 黒ラベル
-            drawRealCan(ctx, 700, 290, 170, 280, '#e67e22', '麦とホップ');
-            drawRealCan(ctx, 890, 310, 150, 260, '#0055ff', '極ZERO');
-
-            // 右側：キンキンに冷えたジョッキビール・泡・シズル飛沫
-            ctx.fillStyle = 'rgba(255, 180, 0, 0.9)';
-            ctx.beginPath(); ctx.arc(1480, 380, 210, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath(); ctx.arc(1480, 190, 220, 0, Math.PI); ctx.fill();
-
-            // 泡と飛沫パーティクル演出
-            for(let i=0; i<80; i++) {
-                ctx.fillStyle = 'rgba(255, 255, 255, ' + Math.random() + ')';
-                ctx.beginPath();
-                ctx.arc(1200 + Math.random()*600, 100 + Math.random()*500, Math.random()*12, 0, Math.PI*2);
-                ctx.fill();
-            }
-
-            ctx.font = 'bold 30px sans-serif'; ctx.fillStyle = '#ffffff';
-            ctx.fillText('※お酒は二十歳になってから。', 1250, 590);
-
-            realBeerTexture = new THREE.CanvasTexture(cvs);
-        }
-
-        function drawRealCan(ctx, x, y, w, h, color, title, isBlackLabel = false) {
-            ctx.fillStyle = isBlackLabel ? '#f8f8f8' : color;
-            ctx.fillRect(x, y, w, h);
-            ctx.strokeStyle = '#222'; ctx.lineWidth = 4;
-            ctx.strokeRect(x, y, w, h);
-
-            if (isBlackLabel) {
-                ctx.fillStyle = '#111111';
-                ctx.beginPath(); ctx.arc(x + w/2, y + 95, 52, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = '#ffd700'; ctx.font = 'bold 50px sans-serif';
-                ctx.fillText('★', x + w/2 - 22, y + 112);
-            }
-
-            ctx.fillStyle = '#111'; ctx.font = 'bold 22px sans-serif';
-            ctx.fillText(title, x + 12, y + h - 25);
+        function loadRealPhotoTexture() {
+            realPhotoImg = new Image();
+            realPhotoImg.onload = function() {
+                // 2面広告枠への実写真描画
+                if (page2Ctx && page2Texture) {
+                    page2Ctx.drawImage(realPhotoImg, 100, 1350, 1850, 640);
+                    page2Texture.needsUpdate = true;
+                }
+                // 飛び出す3D缶への実写真テクスチャ適用
+                if (beerCanMesh) {
+                    realPhotoTexture = new THREE.CanvasTexture(realPhotoImg);
+                    beerCanMesh.material.map = realPhotoTexture;
+                    beerCanMesh.material.needsUpdate = true;
+                }
+            };
+            // 同じフォルダにある実写真ファイルを指定
+            realPhotoImg.src = 'sapporo_beer.jpg';
         }
 
         function createLivePhotoArea() {
@@ -242,15 +196,15 @@
             page1Mesh.add(photoMesh);
         }
 
-        function createExactRealBeerAd() {
+        function createDirectRealPhotoBeerAd() {
             beerCanGroup = new THREE.Group();
             beerCanGroup.position.set(0.68, -0.35, 0.06);
             backgroundPageMesh.add(beerCanGroup);
 
             const canGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.19, 32);
             const canMat = new THREE.MeshStandardMaterial({
-                map: realBeerTexture,
-                metalness: 0.4,
+                color: 0xffffff,
+                metalness: 0.3,
                 roughness: 0.2
             });
             beerCanMesh = new THREE.Mesh(canGeo, canMat);
@@ -323,11 +277,6 @@
             // 広告枠枠線
             page2Ctx.strokeStyle = '#ffd700'; page2Ctx.lineWidth = 6;
             page2Ctx.strokeRect(100, 1350, 1850, 640);
-
-            // 実写画像キャンバスを合成
-            if (realBeerTexture && realBeerTexture.image) {
-                page2Ctx.drawImage(realBeerTexture.image, 100, 1350, 1850, 640);
-            }
 
             const tex = new THREE.CanvasTexture(page2Canvas);
             tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
