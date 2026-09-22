@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Mainichi Shimbun - Build #010 Cropped Aspect Ratio WebXR</title>
+    <title>3D Mainichi Shimbun - Build #011 Direct Real Photo Panel WebXR</title>
     <style>
         body {
             margin: 0;
@@ -57,9 +57,9 @@
 </head>
 <body>
     <div id="vr-overlay">
-        <button id="enter-xr-btn" class="btn-xr">🥽 空間ホログラムWebXR起動 (Build #010)</button>
+        <button id="enter-xr-btn" class="btn-xr">🥽 空間ホログラムWebXR起動 (Build #011)</button>
     </div>
-    <div id="info-ui">Build #010：アスペクト比適正化版。歪みのない本物の黒ラベル缶が飛び出します</div>
+    <div id="info-ui">Build #011：無変形・実写真完全表示版。2面をめくるとサッポロビール実写広告が目の前に飛び出します</div>
 
     <script>
         let scene, camera, renderer, hologramStage;
@@ -76,7 +76,7 @@
         let controller1, controller2;
         let isAdHovered = false;
 
-        let realPhotoTexture, canCropTexture;
+        let realPhotoTexture;
         let page2Canvas, page2Ctx, page2Texture;
 
         const realBeerBase64 = "https://i.imgur.com/8QG9Z6k.jpeg";
@@ -145,7 +145,7 @@
             // 1面 LIVE PHOTO
             createLivePhotoArea();
 
-            // 2面 実写サッポロビール 3Dオブジェクト
+            // 2面 実写サッポロビール 3Dオブジェクト（立体ポスターパネル）
             createDirectRealPhotoBeerAd();
 
             // WebXR入力設定
@@ -178,64 +178,52 @@
 
         function createDirectRealPhotoBeerAd() {
             beerCanGroup = new THREE.Group();
-            beerCanGroup.position.set(0.68, -0.35, 0.06);
+            beerCanGroup.position.set(0.50, -0.35, 0.06);
             backgroundPageMesh.add(beerCanGroup);
 
-            const canGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.19, 32);
-            const canMat = new THREE.MeshStandardMaterial({
-                color: 0xffffff,
-                metalness: 0.3,
-                roughness: 0.2
+            // 送信画像の元アスペクト比（横長）に完全に適合する立体ポスターパネル構造
+            const panelGeo = new THREE.PlaneGeometry(0.85, 0.30);
+            const panelMat = new THREE.MeshStandardMaterial({
+                side: THREE.DoubleSide,
+                roughness: 0.2,
+                metalness: 0.1
             });
-            beerCanMesh = new THREE.Mesh(canGeo, canMat);
+            beerCanMesh = new THREE.Mesh(panelGeo, panelMat);
             beerCanGroup.add(beerCanMesh);
 
-            // 実写画像から「黒ラベル缶部分」を自動切り出して3D缶に適用
+            // 実写画像の無変形ダイレクト読み込み
             const img = new Image();
             img.crossOrigin = "anonymous";
             img.onload = function() {
-                // 1. 2面下部広告（画像全体を提示そのまま描画）
+                realPhotoTexture = new THREE.CanvasTexture(img);
+                beerCanMesh.material.map = realPhotoTexture;
+                beerCanMesh.material.needsUpdate = true;
+
                 if (page2Ctx && page2Texture) {
                     page2Ctx.drawImage(img, 100, 1350, 1850, 640);
                     page2Texture.needsUpdate = true;
                 }
-
-                // 2. 3D缶オブジェクト（中央の黒ラベル部分をアスペクト比そのまま切り出し）
-                const cropCanvas = document.createElement('canvas');
-                cropCanvas.width = 512; cropCanvas.height = 512;
-                const cropCtx = cropCanvas.getContext('2d');
-                
-                // 画像中央の「黒ラベル」缶エリアを切り出し
-                const sourceX = img.width * 0.26;
-                const sourceY = img.height * 0.40;
-                const sourceW = img.width * 0.22;
-                const sourceH = img.height * 0.58;
-
-                cropCtx.drawImage(img, sourceX, sourceY, sourceW, sourceH, 0, 0, 512, 512);
-
-                canCropTexture = new THREE.CanvasTexture(cropCanvas);
-                beerCanMesh.material.map = canCropTexture;
-                beerCanMesh.material.needsUpdate = true;
             };
             img.src = realBeerBase64;
 
-            const ringGeo = new THREE.RingGeometry(0.07, 0.09, 32);
-            const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e1ff, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
+            // 冷気パルス枠線
+            const ringGeo = new THREE.PlaneGeometry(0.89, 0.34);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e1ff, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
             pulseRing = new THREE.Mesh(ringGeo, ringMat);
-            pulseRing.rotation.x = Math.PI / 2;
-            pulseRing.position.y = -0.095;
+            pulseRing.position.z = -0.005;
             beerCanGroup.add(pulseRing);
 
+            // 氷結パーティクル
             const pGeo = new THREE.BufferGeometry();
-            const pCount = 70;
+            const pCount = 80;
             const posArray = new Float32Array(pCount * 3);
             for(let i=0; i<pCount*3; i+=3) {
-                posArray[i] = (Math.random() - 0.5) * 0.25;
-                posArray[i+1] = (Math.random() - 0.5) * 0.25;
-                posArray[i+2] = (Math.random() - 0.5) * 0.25;
+                posArray[i] = (Math.random() - 0.5) * 0.90;
+                posArray[i+1] = (Math.random() - 0.5) * 0.35;
+                posArray[i+2] = (Math.random() - 0.5) * 0.20;
             }
             pGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-            const pMat = new THREE.PointsMaterial({ size: 0.01, color: 0x00e1ff, transparent: true, opacity: 0.9 });
+            const pMat = new THREE.PointsMaterial({ size: 0.012, color: 0x00e1ff, transparent: true, opacity: 0.9 });
             iceParticles = new THREE.Points(pGeo, pMat);
             beerCanGroup.add(iceParticles);
         }
@@ -421,19 +409,17 @@
                 const intersects = raycaster.intersectObject(beerCanMesh);
                 isAdHovered = intersects.length > 0;
 
-                const targetScale = isAdHovered ? 2.8 : 1.0;
+                const targetScale = isAdHovered ? 2.2 : 1.0;
                 const targetZ = isAdHovered ? 0.50 : 0.06;
 
                 beerCanGroup.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
                 beerCanGroup.position.z += (targetZ - beerCanGroup.position.z) * 0.1;
 
                 if (isAdHovered) {
-                    beerCanMesh.rotation.y += 0.05;
                     pulseRing.material.opacity = 0.9;
-                    pulseRing.scale.set(2.0, 2.0, 2.0);
+                    pulseRing.scale.set(1.1, 1.1, 1.1);
                 } else {
-                    beerCanMesh.rotation.y += 0.005;
-                    pulseRing.material.opacity = 0.3;
+                    pulseRing.material.opacity = 0.4;
                     pulseRing.scale.set(1.0, 1.0, 1.0);
                 }
             }
