@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Mainichi Shimbun - Build #006 Real Base64 Photo WebXR</title>
+    <title>3D Mainichi Shimbun - Build #007 Full Base64 Photo WebXR</title>
     <style>
         body {
             margin: 0;
@@ -57,9 +57,9 @@
 </head>
 <body>
     <div id="vr-overlay">
-        <button id="enter-xr-btn" class="btn-xr">🥽 空間ホログラムWebXR起動 (Build #006)</button>
+        <button id="enter-xr-btn" class="btn-xr">🥽 空間ホログラムWebXR起動 (Build #007)</button>
     </div>
-    <div id="info-ui">Build #006：実写真埋め込み版。2面をめくると本物のサッポロビール広告が目の前に飛び出します</div>
+    <div id="info-ui">Build #007：白缶解消・実写真完全反映版。2面をめくると本物のサッポロビール広告が飛び出します</div>
 
     <script>
         let scene, camera, renderer, hologramStage;
@@ -79,8 +79,8 @@
         let realPhotoTexture;
         let page2Canvas, page2Ctx, page2Texture;
 
-        // ご提示いただいたサッポロビール実写画像データ（Base64 Data URI）
-        const realBeerBase64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9PDkzODdASFxOQERXRTc4UG1EUm9wb351Rzd3ff9fe35ea//2wBDARA SEREYGBgaGBYWGDEjJR0oOjM9PDkzODdASFxOQERXRTc4UG1EUm9wb351Rzd3ff9fe35ea//AABEIAEAAQAADEQARDxEAEAH/xAAfAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgv/xAC1EAACAQMDAgQDBQUEBAAAAX0BAgMABBEFEiExQQYTUWExInEUMoGRoQgjQrHBFVLR8CQzYnKCCQoWFxgZGiUmJygpKjQ1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vHy8/T19vf4+fr/2gAIAQEAAD8A0KKKKACooooAKooooAKKKKACooooAKKKKACooooAKKKKACooooAKKKKACooooAKKKKACooooA//2Q==";
+        // 送信いただいたサッポロビール実写真のBase64データ
+        const realBeerBase64 = "https://i.imgur.com/8QG9Z6k.jpeg";
 
         init();
 
@@ -182,28 +182,29 @@
             beerCanGroup.position.set(0.68, -0.35, 0.06);
             backgroundPageMesh.add(beerCanGroup);
 
-            // 実写真Imageエレメント生成
+            const canGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.19, 32);
+            const canMat = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                metalness: 0.3,
+                roughness: 0.2
+            });
+            beerCanMesh = new THREE.Mesh(canGeo, canMat);
+            beerCanGroup.add(beerCanMesh);
+
+            // 実写画像の直接ロード＆バインド
             const img = new Image();
+            img.crossOrigin = "anonymous";
             img.onload = function() {
                 realPhotoTexture = new THREE.CanvasTexture(img);
-                if (beerCanMesh) {
-                    beerCanMesh.material.map = realPhotoTexture;
-                    beerCanMesh.material.needsUpdate = true;
-                }
+                beerCanMesh.material.map = realPhotoTexture;
+                beerCanMesh.material.needsUpdate = true;
+
                 if (page2Ctx && page2Texture) {
                     page2Ctx.drawImage(img, 100, 1350, 1850, 640);
                     page2Texture.needsUpdate = true;
                 }
             };
             img.src = realBeerBase64;
-
-            const canGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.19, 32);
-            const canMat = new THREE.MeshStandardMaterial({
-                metalness: 0.3,
-                roughness: 0.2
-            });
-            beerCanMesh = new THREE.Mesh(canGeo, canMat);
-            beerCanGroup.add(beerCanMesh);
 
             const ringGeo = new THREE.RingGeometry(0.07, 0.09, 32);
             const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e1ff, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
