@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Hologram Newspaper - Mainichi Shimbun 2-Page Demo</title>
+    <title>3D Hologram Newspaper - Flexible Page Flip & Depth Demo</title>
     <style>
         body {
             margin: 0;
@@ -59,13 +59,16 @@
     <div id="ui-container">
         <button id="flip-btn" class="ui-btn">毎日新聞 ページをめくる (1面 ↔ 2面)</button>
     </div>
-    <div id="info-ui">ボタン操作で「毎日新聞」の2ページめくりを再現 / 2面下部広告にポインターを合わせると3Dポップアップ</div>
+    <div id="info-ui">しなやかな紙の「しなり」と「3D奥行き感」を再現 / 2面下部広告で3Dポップアップ</div>
 
     <script>
         let scene, camera, renderer;
-        let page1Group, page2Group;
-        let isPage1 = true;
-        let isFlipping = false;
+        let page1Mesh, page2Mesh;
+        let page1Geo, page2Geo;
+        let origP1Positions, origP2Positions;
+        
+        let flipProgress = 0; // 0 (1面表示) 〜 1 (2面表示)
+        let targetProgress = 0;
 
         let beerCanGroup, beerCanMesh, pulseRing;
         let raycaster, mouse;
@@ -77,8 +80,10 @@
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000); // 漆黒 RGB:0,0,0
 
-            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 1.5, 1.2);
+            // 3D感を際立たせる斜め透視カメラアングル
+            camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0.2, 0.2, 2.2);
+            camera.lookAt(0, 0, 0);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -88,75 +93,78 @@
             raycaster = new THREE.Raycaster();
             mouse = new THREE.Vector2(-100, -100);
 
-            // 照明
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1.3);
+            // 陰影と立体感を極めるライティング
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
             scene.add(ambientLight);
 
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            dirLight.position.set(1, 2, 1);
-            scene.add(dirLight);
+            const spotLight = new THREE.SpotLight(0x00ff88, 2.5);
+            spotLight.position.set(2, 3, 2);
+            spotLight.angle = Math.PI / 4;
+            spotLight.penumbra = 0.8;
+            scene.add(spotLight);
 
-            // ピボット設定（左端を折り目軸にする）
-            const mainPivot = new THREE.Group();
-            mainPivot.position.set(0, 1.5, -0.8);
-            scene.add(mainPivot);
+            const blueLight = new THREE.PointLight(0x00e1ff, 2.0, 10);
+            blueLight.position.set(-2, -1, 1);
+            scene.add(blueLight);
 
-            // 毎日新聞 1面
-            page1Group = new THREE.Group();
-            page1Group.position.set(-0.4, 0, 0);
-            mainPivot.add(page1Group);
+            // 高密度メッシュ（32x32分割）でしなやかな曲げ処理を可能にする
+            page1Geo = new THREE.PlaneGeometry(1.0, 1.2, 32, 32);
+            page1Geo.translate(0.5, 0, 0); // 左端（折り目）を軸に設定
+            origP1Positions = page1Geo.attributes.position.clone();
 
-            // 毎日新聞 2面（中面）
-            page2Group = new THREE.Group();
-            page2Group.position.set(-0.4, 0, 0);
-            page2Group.rotation.y = Math.PI;
-            mainPivot.add(page2Group);
+            page2Geo = new THREE.PlaneGeometry(1.0, 1.2, 32, 32);
+            page2Geo.translate(0.5, 0, 0);
+            origP2Positions = page2Geo.attributes.position.clone();
 
-            // テクスチャ生成
             const tex1 = createMainichiPage1Texture();
             const tex2 = createMainichiPage2Texture();
 
-            const pageGeo = new THREE.PlaneGeometry(0.8, 0.8);
-            pageGeo.translate(0.4, 0, 0);
+            const mat1 = new THREE.MeshStandardMaterial({ map: tex1, side: THREE.DoubleSide, roughness: 0.2, metalness: 0.1 });
+            const mat2 = new THREE.MeshStandardMaterial({ map: tex2, side: THREE.DoubleSide, roughness: 0.2, metalness: 0.1 });
 
-            const page1Mesh = new THREE.Mesh(pageGeo, new THREE.MeshStandardMaterial({ map: tex1, side: THREE.DoubleSide, roughness: 0.3 }));
-            page1Group.add(page1Mesh);
+            page1Mesh = new THREE.Mesh(page1Geo, mat1);
+            page2Mesh = new THREE.Mesh(page2Geo, mat2);
 
-            const page2Mesh = new THREE.Mesh(pageGeo, new THREE.MeshStandardMaterial({ map: tex2, side: THREE.DoubleSide, roughness: 0.3 }));
-            page2Group.add(page2Mesh);
+            // 全体をわずかに傾けて3D立体感を誇張
+            const paperContainer = new THREE.Group();
+            paperContainer.rotation.x = 0.15;
+            paperContainer.rotation.y = -0.2;
+            paperContainer.position.set(-0.4, 0, 0);
+            scene.add(paperContainer);
+
+            paperContainer.add(page1Mesh);
+            paperContainer.add(page2Mesh);
 
             // ==========================================
             // 3D リアルダミー広告：生ビール缶 (毎日新聞 2面に配置)
             // ==========================================
             beerCanGroup = new THREE.Group();
-            beerCanGroup.position.set(0.55, -0.22, 0.03);
-            page2Group.add(beerCanGroup);
+            beerCanGroup.position.set(0.65, -0.32, 0.05);
+            page2Mesh.add(beerCanGroup);
 
-            const canGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.12, 32);
-            const canMat = new THREE.MeshStandardMaterial({
-                color: 0x111111,
-                metalness: 0.85,
-                roughness: 0.2
-            });
+            const canGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.16, 32);
+            const canMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.1 });
             beerCanMesh = new THREE.Mesh(canGeo, canMat);
-            beerCanMesh.name = "BEER_CAN";
             beerCanGroup.add(beerCanMesh);
 
-            const starGeo = new THREE.OctahedronGeometry(0.018);
+            const starGeo = new THREE.OctahedronGeometry(0.022);
             const starMat = new THREE.MeshBasicMaterial({ color: 0xffd700 });
             const starMesh = new THREE.Mesh(starGeo, starMat);
-            starMesh.position.set(0, 0.01, 0.041);
+            starMesh.position.set(0, 0.01, 0.051);
             starMesh.scale.set(1, 1, 0.2);
             beerCanGroup.add(starMesh);
 
-            const ringGeo = new THREE.RingGeometry(0.05, 0.065, 32);
-            const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e1ff, side: THREE.DoubleSide, transparent: true, opacity: 0.4 });
+            const ringGeo = new THREE.RingGeometry(0.06, 0.08, 32);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e1ff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
             pulseRing = new THREE.Mesh(ringGeo, ringMat);
             pulseRing.rotation.x = Math.PI / 2;
-            pulseRing.position.y = -0.06;
+            pulseRing.position.y = -0.08;
             beerCanGroup.add(pulseRing);
 
-            document.getElementById('flip-btn').addEventListener('click', togglePage);
+            document.getElementById('flip-btn').addEventListener('click', () => {
+                targetProgress = targetProgress === 0 ? 1 : 0;
+            });
+
             window.addEventListener('mousemove', onMouseMove);
             window.addEventListener('resize', onWindowResize);
 
@@ -164,7 +172,7 @@
         }
 
         // ==========================================
-        // 毎日新聞 1面テクスチャ（実際の紙面レイアウト）
+        // 毎日新聞 1面テクスチャ
         // ==========================================
         function createMainichiPage1Texture() {
             const canvas = document.createElement('canvas');
@@ -172,25 +180,22 @@
             const ctx = canvas.getContext('2d');
 
             ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, 2048, 2048);
-            ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 6; ctx.strokeRect(20, 20, 2008, 2008);
+            ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 8; ctx.strokeRect(20, 20, 2008, 2008);
 
-            // 毎日新聞 題字枠
             ctx.fillStyle = '#00331a'; ctx.fillRect(1520, 50, 470, 280);
-            ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 3; ctx.strokeRect(1520, 50, 470, 280);
+            ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 4; ctx.strokeRect(1520, 50, 470, 280);
             
             ctx.fillStyle = '#00ff88'; ctx.font = 'bold 110px "Hiragino Mincho ProN", serif';
             ctx.fillText('毎', 1780, 160); ctx.fillText('日', 1780, 280);
             ctx.fillText('新', 1610, 160); ctx.fillText('聞', 1610, 280);
 
-            ctx.fillStyle = '#ffffff'; ctx.font = '22px sans-serif';
+            ctx.fillStyle = '#ffffff'; ctx.font = '24px sans-serif';
             ctx.fillText('2026年 (令和8年) 9月22日 (火曜日)', 1530, 310);
 
-            // 1面 トップ記事見出し
-            ctx.fillStyle = '#00ff88'; ctx.font = 'bold 72px serif';
-            ctx.fillText('毎日新聞 3Dホログラム版 実証実験', 100, 150);
+            ctx.fillStyle = '#00ff88'; ctx.font = 'bold 76px serif';
+            ctx.fillText('毎日新聞 3Dホログラム版 実証実験', 100, 160);
 
-            // 縦書き本文グリッド
-            ctx.strokeStyle = '#005533'; ctx.lineWidth = 1;
+            ctx.strokeStyle = '#005533'; ctx.lineWidth = 2;
             for(let x = 1450; x > 100; x -= 40) {
                 ctx.beginPath(); ctx.moveTo(x, 350); ctx.lineTo(x, 1950); ctx.stroke();
             }
@@ -209,45 +214,65 @@
             const ctx = canvas.getContext('2d');
 
             ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, 2048, 2048);
-            ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 6; ctx.strokeRect(20, 20, 2008, 2008);
+            ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 8; ctx.strokeRect(20, 20, 2008, 2008);
 
-            // 毎日新聞 中面ヘッダー
             ctx.fillStyle = '#00331a'; ctx.fillRect(50, 50, 1940, 90);
-            ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 3; ctx.strokeRect(50, 50, 1940, 90);
+            ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 4; ctx.strokeRect(50, 50, 1940, 90);
 
             ctx.fillStyle = '#00ff88'; ctx.font = 'bold 50px "Hiragino Mincho ProN", serif';
             ctx.fillText('毎日新聞', 80, 115);
             ctx.font = 'bold 35px sans-serif'; ctx.fillText('総合・社会 ２面', 1680, 110);
 
-            // 中面 見出し
-            ctx.fillStyle = '#00ff88'; ctx.font = 'bold 65px serif';
+            ctx.fillStyle = '#00ff88'; ctx.font = 'bold 68px serif';
             ctx.fillText('特定技能制度の最新運用動向と支援体制', 100, 240);
 
-            // 縦書き本文グリッド
-            ctx.strokeStyle = '#005533'; ctx.lineWidth = 1;
+            ctx.strokeStyle = '#005533'; ctx.lineWidth = 2;
             for(let x = 1900; x > 100; x -= 38) {
                 ctx.beginPath(); ctx.moveTo(x, 280); ctx.lineTo(x, 1320); ctx.stroke();
             }
 
-            // 下部 広告枠 (サッポロ生ビール黒ラベル)
-            ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 4;
+            // 広告枠
+            ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 6;
             ctx.strokeRect(100, 1350, 1850, 640);
             ctx.fillStyle = '#05100a'; ctx.fillRect(100, 1350, 1850, 640);
 
-            ctx.fillStyle = '#ffd700'; ctx.font = 'bold 52px serif';
+            ctx.fillStyle = '#ffd700'; ctx.font = 'bold 55px serif';
             ctx.fillText('★ SAPPORO 生ビール 黒ラベル', 150, 1440);
-            ctx.fillStyle = '#ffffff'; ctx.font = '28px sans-serif';
-            ctx.fillText('丸くなるな、星になれ。［ ポインターを合わせて3Dポップアップ ］', 150, 1510);
+            ctx.fillStyle = '#ffffff'; ctx.font = '30px sans-serif';
+            ctx.fillText('丸くなるな、星になれ。［ 指を近づけて立体3Dポップアップ ］', 150, 1520);
 
             const tex = new THREE.CanvasTexture(canvas);
             tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
             return tex;
         }
 
-        function togglePage() {
-            if (isFlipping) return;
-            isFlipping = true;
-            isPage1 = !isPage1;
+        // ==========================================
+        // 頂点シェーダー風「しなやかな紙のしなり」の数学計算
+        // ==========================================
+        function updatePageDeformation(geo, origPos, angle) {
+            const pos = geo.attributes.position;
+            const count = pos.count;
+
+            for (let i = 0; i < count; i++) {
+                const x = origPos.getX(i);
+                const y = origPos.getY(i);
+
+                // 端（xが大きい部分）ほど遅れて、大きくしなるカーブ処理
+                const curlIntensity = Math.sin(angle) * 0.35; // しなりの深さ
+                const bendRatio = Math.pow(x, 1.5); // 端ほど強く曲がる
+
+                // 回転角に応じた基本回転
+                const rad = angle;
+                let newX = x * Math.cos(rad);
+                let newZ = -x * Math.sin(rad);
+
+                // しなり（Z軸方向の膨らみ）を加算
+                newZ += Math.sin(x * Math.PI) * curlIntensity * Math.sin(angle);
+
+                pos.setXYZ(i, newX, y, newZ);
+            }
+            pos.needsUpdate = true;
+            geo.computeVertexNormals(); // 影のリアルタイム計算
         }
 
         function onMouseMove(event) {
@@ -262,35 +287,32 @@
         }
 
         function render() {
-            const flipSpeed = 0.08;
-            if (isPage1) {
-                page1Group.rotation.y += (0 - page1Group.rotation.y) * flipSpeed;
-                page2Group.rotation.y += (Math.PI - page2Group.rotation.y) * flipSpeed;
-            } else {
-                page1Group.rotation.y += (-Math.PI - page1Group.rotation.y) * flipSpeed;
-                page2Group.rotation.y += (0 - page2Group.rotation.y) * flipSpeed;
-            }
+            // 滑らかな進行補間
+            flipProgress += (targetProgress - flipProgress) * 0.05;
 
-            if (Math.abs(page1Group.rotation.y - (isPage1 ? 0 : -Math.PI)) < 0.01) {
-                isFlipping = false;
-            }
+            // 1面と2面の回転角度としなり（0 〜 -PI）
+            const angle1 = -flipProgress * Math.PI;
+            const angle2 = Math.PI - flipProgress * Math.PI;
 
-            // 2面表示時のビール缶アテンション判定
-            if (!isPage1) {
+            updatePageDeformation(page1Geo, origP1Positions, angle1);
+            updatePageDeformation(page2Geo, origP2Positions, angle2);
+
+            // 2面（日経/毎日2面）表示時のビール缶アテンション判定
+            if (flipProgress > 0.6) {
                 raycaster.setFromCamera(mouse, camera);
                 const intersects = raycaster.intersectObject(beerCanMesh);
                 isAdHovered = intersects.length > 0;
 
-                const targetScale = isAdHovered ? 2.2 : 1.0;
-                const targetZ = isAdHovered ? 0.30 : 0.03;
+                const targetScale = isAdHovered ? 2.5 : 1.0;
+                const targetZ = isAdHovered ? 0.35 : 0.05;
 
                 beerCanGroup.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
                 beerCanGroup.position.z += (targetZ - beerCanGroup.position.z) * 0.1;
 
                 if (isAdHovered) {
-                    beerCanMesh.rotation.y += 0.03;
+                    beerCanMesh.rotation.y += 0.04;
                     pulseRing.material.opacity = 0.9;
-                    pulseRing.scale.set(1.6, 1.6, 1.6);
+                    pulseRing.scale.set(1.8, 1.8, 1.8);
                 } else {
                     beerCanMesh.rotation.y += 0.005;
                     pulseRing.material.opacity = 0.3;
