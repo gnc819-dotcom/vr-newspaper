@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Mainichi Shimbun - LivePhoto & Super Sizzle 3D Ad</title>
+    <title>3D Mainichi Shimbun - Dynamic 3D Two-Sided Page Curl</title>
     <style>
         body {
             margin: 0;
@@ -21,54 +21,33 @@
             transform: translateX(-50%);
             color: #00ff88;
             font-family: sans-serif;
-            font-size: 15px;
-            background: rgba(0, 0, 0, 0.88);
-            padding: 12px 28px;
+            font-size: 16px;
+            background: rgba(0,0,0,0.85);
+            padding: 12px 25px;
             border: 2px solid #00ff88;
             border-radius: 30px;
             pointer-events: none;
             text-align: center;
-            box-shadow: 0 0 25px rgba(0, 255, 136, 0.6);
-            z-index: 100;
-        }
-        #sizzle-caption {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #ffd700;
-            font-family: 'Hiragino Mincho ProN', serif;
-            font-size: 20px;
-            letter-spacing: 2px;
-            text-shadow: 0 0 10px #ffd700, 0 0 20px #ff6600;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.8s ease;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
             z-index: 100;
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-    <div id="sizzle-caption">【超極冷】キンキンに冷えた生ビールが目の前に飛び出す！</div>
-    <div id="info-ui">右端をつかんでドラッグ：しなやかにページをめくります（1面：LIVEPHOTO動作中）</div>
+    <div id="info-ui">ドラッグで紙をめくると、奥にある「2面（次のページ）」が立体的に現れます</div>
 
     <script>
         let scene, camera, renderer;
-        let page1Mesh, backgroundPageMesh;
-        let page1Geo, origPositions;
-        let page1Texture, page2Texture;
+        let page1Mesh, page2Mesh, backgroundPageMesh;
+        let page1Geo, page2Geo;
+        let origPositions;
         
         let isDragging = false;
-        let dragProgress = 0;
+        let dragProgress = 0; // 0 (1面) 〜 1 (2面)
         let targetProgress = 0;
 
-        // LIVEPHOTO関連
-        let livePhotoCanvas, livePhotoCtx, livePhotoTexture;
-        let livePhotoAnimTime = 0;
-
-        // ビール3D広告演出関連
-        let beerCanGroup, beerCanMesh, frostParticles, coldSteamGroup;
+        let beerCanGroup, beerCanMesh, pulseRing;
         let raycaster, mouse;
         let isAdHovered = false;
 
@@ -76,10 +55,11 @@
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x000000);
+            scene.background = new THREE.Color(0x000000); // 漆黒 RGB:0,0,0
 
-            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0.1, 0.15, 2.3);
+            // 3D奥行き感を強く感じる透視カメラ
+            camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0.2, 0.2, 2.5);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -89,58 +69,47 @@
             raycaster = new THREE.Raycaster();
             mouse = new THREE.Vector2(-100, -100);
 
-            // ライティング
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1.1);
+            // 空間の立体感を強調する3方向ライティング
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
             scene.add(ambientLight);
 
-            const greenSpot = new THREE.SpotLight(0x00ff88, 2.5);
-            greenSpot.position.set(3, 4, 3);
-            scene.add(greenSpot);
+            const mainLight = new THREE.DirectionalLight(0x00ff88, 1.8);
+            mainLight.position.set(2, 3, 4);
+            scene.add(mainLight);
 
-            const beerAmberLight = new THREE.PointLight(0xffaa00, 3.5, 5);
-            beerAmberLight.position.set(0.5, -0.2, 0.8);
-            scene.add(beerAmberLight);
-
-            // LIVEPHOTO用キャンバス生成
-            setupLivePhotoCanvas();
+            const backLight = new THREE.PointLight(0x00e1ff, 2.0, 10);
+            backLight.position.set(-3, -1, -2);
+            scene.add(backLight);
 
             const width = 1.0;
             const height = 1.35;
 
-            // 高密度メッシュ
+            // 高密度64x64メッシュ
             page1Geo = new THREE.PlaneGeometry(width, height, 64, 64);
-            page1Geo.translate(width / 2, 0, 0);
+            page1Geo.translate(width / 2, 0, 0); // 左端をめくり軸（背表紙）に固定
+
             origPositions = page1Geo.attributes.position.clone();
 
-            page1Texture = createMainichiPage1Texture();
-            page2Texture = createMainichiPage2Texture();
+            const tex1 = createMainichiPage1Texture();
+            const tex2 = createMainichiPage2Texture();
 
-            const mat1 = new THREE.MeshStandardMaterial({
-                map: page1Texture,
-                side: THREE.DoubleSide,
-                roughness: 0.25,
-                metalness: 0.05
-            });
-
+            // 1面（めくられる表面）
+            const mat1 = new THREE.MeshStandardMaterial({ map: tex1, side: THREE.DoubleSide, roughness: 0.3, metalness: 0.05 });
             page1Mesh = new THREE.Mesh(page1Geo, mat1);
             page1Mesh.renderOrder = 2;
 
-            // 2面（固定待機面）
+            // 2面（下に固定で待機している次のページ）
             const bgGeo = new THREE.PlaneGeometry(width, height);
             bgGeo.translate(width / 2, 0, 0);
-            const mat2 = new THREE.MeshStandardMaterial({
-                map: page2Texture,
-                side: THREE.DoubleSide,
-                roughness: 0.25,
-                metalness: 0.05
-            });
+            const mat2 = new THREE.MeshStandardMaterial({ map: tex2, side: THREE.DoubleSide, roughness: 0.3, metalness: 0.05 });
             backgroundPageMesh = new THREE.Mesh(bgGeo, mat2);
-            backgroundPageMesh.position.z = -0.02;
+            backgroundPageMesh.position.z = -0.02; // 1面の少し奥に配置
             backgroundPageMesh.renderOrder = 1;
 
+            // 全体を3D空間に傾けて浮かせる（立体感の確立）
             const hologramStage = new THREE.Group();
-            hologramStage.rotation.x = 0.18;
-            hologramStage.rotation.y = -0.22;
+            hologramStage.rotation.x = 0.2;
+            hologramStage.rotation.y = -0.25;
             hologramStage.position.set(-0.45, 0, 0);
             scene.add(hologramStage);
 
@@ -148,50 +117,32 @@
             hologramStage.add(backgroundPageMesh);
 
             // ==========================================
-            // キンキンに冷えた 3D生ビール缶 ＋ 氷結・冷気演出
+            // 2面（奥のページ）下部 3D立体缶（サッポロ黒ラベル）
             // ==========================================
             beerCanGroup = new THREE.Group();
-            beerCanGroup.position.set(0.68, -0.35, 0.05);
+            beerCanGroup.position.set(0.68, -0.35, 0.06);
             backgroundPageMesh.add(beerCanGroup);
 
-            // 缶本体（リアルメタリック）
-            const canGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.19, 32);
-            const canMat = new THREE.MeshStandardMaterial({
-                color: 0x111111,
-                metalness: 0.95,
-                roughness: 0.08
-            });
+            const canGeo = new THREE.CylinderGeometry(0.055, 0.055, 0.17, 32);
+            const canMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.1 });
             beerCanMesh = new THREE.Mesh(canGeo, canMat);
             beerCanGroup.add(beerCanMesh);
 
-            // 金星マーク
-            const starGeo = new THREE.OctahedronGeometry(0.028);
-            const starMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.8, roughness: 0.2 });
+            const starGeo = new THREE.OctahedronGeometry(0.024);
+            const starMat = new THREE.MeshBasicMaterial({ color: 0xffd700 });
             const starMesh = new THREE.Mesh(starGeo, starMat);
-            starMesh.position.set(0, 0.015, 0.061);
+            starMesh.position.set(0, 0.01, 0.056);
             starMesh.scale.set(1, 1, 0.2);
             beerCanGroup.add(starMesh);
 
-            // 氷結パーティクル（缶の周囲を舞う氷の結晶）
-            const particleCount = 60;
-            const particleGeo = new THREE.BufferGeometry();
-            const positions = new Float32Array(particleCount * 3);
-            for (let i = 0; i < particleCount * 3; i += 3) {
-                positions[i] = (Math.random() - 0.5) * 0.3;
-                positions[i + 1] = (Math.random() - 0.5) * 0.3;
-                positions[i + 2] = (Math.random() - 0.5) * 0.3;
-            }
-            particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            const particleMat = new THREE.PointsMaterial({
-                color: 0x00e1ff,
-                size: 0.012,
-                transparent: true,
-                opacity: 0.8
-            });
-            frostParticles = new THREE.Points(particleGeo, particleMat);
-            beerCanGroup.add(frostParticles);
+            const ringGeo = new THREE.RingGeometry(0.065, 0.085, 32);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e1ff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
+            pulseRing = new THREE.Mesh(ringGeo, ringMat);
+            pulseRing.rotation.x = Math.PI / 2;
+            pulseRing.position.y = -0.085;
+            beerCanGroup.add(pulseRing);
 
-            // イベント登録
+            // 操作イベント
             window.addEventListener('mousedown', onMouseDown);
             window.addEventListener('mousemove', onMouseMove);
             window.addEventListener('mouseup', onMouseUp);
@@ -204,52 +155,7 @@
         }
 
         // ==========================================
-        // LIVEPHOTO（動くグラフィック記事）用キャンバス
-        // ==========================================
-        function setupLivePhotoCanvas() {
-            livePhotoCanvas = document.createElement('canvas');
-            livePhotoCanvas.width = 1024;
-            livePhotoCanvas.height = 600;
-            livePhotoCtx = livePhotoCanvas.getContext('2d');
-            livePhotoTexture = new THREE.CanvasTexture(livePhotoCanvas);
-        }
-
-        function updateLivePhotoCanvas() {
-            livePhotoAnimTime += 0.03;
-            const w = livePhotoCanvas.width;
-            const h = livePhotoCanvas.height;
-
-            // 背景サイバー空間
-            livePhotoCtx.fillStyle = '#001a0f';
-            livePhotoCtx.fillRect(0, 0, w, h);
-
-            // 動的な波紋・ホログラムグリッドを描画（LIVEPHOTO演出）
-            livePhotoCtx.strokeStyle = '#00ff88';
-            livePhotoCtx.lineWidth = 3;
-            for (let i = 0; i < 5; i++) {
-                const radius = ((livePhotoAnimTime * 60 + i * 80) % 500);
-                const alpha = 1 - (radius / 500);
-                livePhotoCtx.strokeStyle = `rgba(0, 255, 136, ${alpha})`;
-                livePhotoCtx.beginPath();
-                livePhotoCtx.arc(w / 2, h / 2, radius, 0, Math.PI * 2);
-                livePhotoCtx.stroke();
-            }
-
-            // 動的テクスチャテキスト
-            livePhotoCtx.fillStyle = '#ffffff';
-            livePhotoCtx.font = 'bold 42px sans-serif';
-            livePhotoCtx.fillText('【LIVE PHOTO】リアルタイムAIデータ通信中...', 60, 100);
-
-            // アニメーションバー
-            const barW = (Math.sin(livePhotoAnimTime * 2) * 0.5 + 0.5) * (w - 120);
-            livePhotoCtx.fillStyle = '#00e1ff';
-            livePhotoCtx.fillRect(60, h - 80, barW, 20);
-
-            livePhotoTexture.needsUpdate = true;
-        }
-
-        // ==========================================
-        // 1面テクスチャ（LIVEPHOTO枠を埋め込み）
+        // 毎日新聞 1面 テクスチャ
         // ==========================================
         function createMainichiPage1Texture() {
             const canvas = document.createElement('canvas');
@@ -259,9 +165,9 @@
             ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, 2048, 2048);
             ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 8; ctx.strokeRect(20, 20, 2008, 2008);
 
-            // 題字
             ctx.fillStyle = '#00331a'; ctx.fillRect(1520, 50, 470, 280);
             ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 4; ctx.strokeRect(1520, 50, 470, 280);
+            
             ctx.fillStyle = '#00ff88'; ctx.font = 'bold 110px "Hiragino Mincho ProN", serif';
             ctx.fillText('毎', 1780, 160); ctx.fillText('日', 1780, 280);
             ctx.fillText('新', 1610, 160); ctx.fillText('聞', 1610, 280);
@@ -269,22 +175,12 @@
             ctx.fillStyle = '#ffffff'; ctx.font = '24px sans-serif';
             ctx.fillText('2026年 (令和8年) 9月22日 (火曜日)', 1530, 310);
 
-            // 大見出し
             ctx.fillStyle = '#00ff88'; ctx.font = 'bold 76px serif';
             ctx.fillText('毎日新聞 3Dホログラム版 実証実験', 100, 160);
 
-            // LIVEPHOTO組み込み位置を示す枠
-            ctx.strokeStyle = '#00e1ff'; ctx.lineWidth = 6;
-            ctx.strokeRect(100, 320, 1350, 750);
-            ctx.fillStyle = '#001a10'; ctx.fillRect(100, 320, 1350, 750);
-
-            ctx.fillStyle = '#00ff88'; ctx.font = 'bold 36px sans-serif';
-            ctx.fillText('▲ 次世代ホログラムLIVE PHOTOメディア枠', 120, 370);
-
-            // 縦組み本文風ライン
             ctx.strokeStyle = '#005533'; ctx.lineWidth = 2;
-            for (let x = 1900; x > 100; x -= 40) {
-                ctx.beginPath(); ctx.moveTo(x, 1120); ctx.lineTo(x, 1950); ctx.stroke();
+            for(let x = 1450; x > 100; x -= 40) {
+                ctx.beginPath(); ctx.moveTo(x, 350); ctx.lineTo(x, 1950); ctx.stroke();
             }
 
             const tex = new THREE.CanvasTexture(canvas);
@@ -292,6 +188,9 @@
             return tex;
         }
 
+        // ==========================================
+        // 毎日新聞 2面（中面）テクスチャ
+        // ==========================================
         function createMainichiPage2Texture() {
             const canvas = document.createElement('canvas');
             canvas.width = 2048; canvas.height = 2048;
@@ -311,19 +210,19 @@
             ctx.fillText('特定技能制度の最新運用動向と支援体制', 100, 240);
 
             ctx.strokeStyle = '#005533'; ctx.lineWidth = 2;
-            for (let x = 1900; x > 100; x -= 38) {
-                ctx.beginPath(); ctx.moveTo(x, 280); ctx.lineTo(x, 1300); ctx.stroke();
+            for(let x = 1900; x > 100; x -= 38) {
+                ctx.beginPath(); ctx.moveTo(x, 280); ctx.lineTo(x, 1320); ctx.stroke();
             }
 
-            // 超極冷ビール 広告エリア
-            ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 8;
+            // 広告枠
+            ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 6;
             ctx.strokeRect(100, 1350, 1850, 640);
-            ctx.fillStyle = '#05120a'; ctx.fillRect(100, 1350, 1850, 640);
+            ctx.fillStyle = '#05100a'; ctx.fillRect(100, 1350, 1850, 640);
 
-            ctx.fillStyle = '#ffd700'; ctx.font = 'bold 60px serif';
-            ctx.fillText('★ SAPPORO　生ビール 黒ラベル 【超極冷】', 150, 1440);
-            ctx.fillStyle = '#00ffff'; ctx.font = '32px sans-serif';
-            ctx.fillText('丸くなるな、星になれ。［ 氷結シズル 3D立体飛び出し広告 ］', 150, 1520);
+            ctx.fillStyle = '#ffd700'; ctx.font = 'bold 55px serif';
+            ctx.fillText('★ SAPPORO 生ビール 黒ラベル', 150, 1440);
+            ctx.fillStyle = '#ffffff'; ctx.font = '30px sans-serif';
+            ctx.fillText('丸くなるな、星になれ。［ 3D立体ポップアップ広告 ］', 150, 1520);
 
             const tex = new THREE.CanvasTexture(canvas);
             tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -331,14 +230,14 @@
         }
 
         // ==========================================
-        // 高精度対角しなり（Page Curl）物理計算
+        // 奥のページを見せながらしならせる3D曲げ計算
         // ==========================================
         function applyPageCurl(geo, progress) {
             const pos = geo.attributes.position;
             const count = pos.count;
 
             const theta = progress * Math.PI;
-            const radius = 0.32 + 0.18 * Math.sin(theta);
+            const radius = 0.35 + 0.15 * Math.sin(theta); // しなりの円弧半径
 
             for (let i = 0; i < count; i++) {
                 const x = origPositions.getX(i);
@@ -360,9 +259,9 @@
                     const newX = curlPoint + radius * Math.sin(angle);
                     const newZ = radius * (1 - Math.cos(angle));
 
-                    // しなやかな三次元曲面（対角カーブの物理計算）
+                    // 1面が手前にしなりながら裏返る立体Z座標計算
                     const rotX = curlPoint - (newX - curlPoint) * Math.cos(theta) - newZ * Math.sin(theta);
-                    const rotZ = (newX - curlPoint) * Math.sin(theta) + newZ * Math.cos(theta) + (0.2 * Math.sin(theta) * (y + 0.7));
+                    const rotZ = (newX - curlPoint) * Math.sin(theta) + newZ * Math.cos(theta) + (0.15 * Math.sin(theta));
 
                     pos.setXYZ(i, rotX, y, rotZ);
                 }
@@ -412,36 +311,30 @@
         function render() {
             dragProgress += (targetProgress - dragProgress) * 0.1;
 
-            // LIVEPHOTOのリアルタイム更新
-            updateLivePhotoCanvas();
-
-            // しなやかなページめくり計算
+            // 1面にしなり曲げを適用（めくると奥の2面が見えてくる）
             applyPageCurl(page1Geo, dragProgress);
 
-            // 2面表示時のキンキンに冷えたビール缶ダイナミックジャンプ演出
-            const sizzleCaption = document.getElementById('sizzle-caption');
-            if (dragProgress > 0.45) {
-                sizzleCaption.style.opacity = '1';
-
+            // 奥のページ（2面）下部にある3Dビール缶の飛び出しインタラクション
+            if (dragProgress > 0.4) {
                 raycaster.setFromCamera(mouse, camera);
                 const intersects = raycaster.intersectObject(beerCanMesh);
                 isAdHovered = intersects.length > 0;
 
-                // 目の前まで飛び出すダイナミックZ軸移動（最大0.75m飛び出し）
-                const targetScale = isAdHovered ? 2.8 : 1.6;
-                const targetZ = isAdHovered ? 0.75 : 0.35;
+                const targetScale = isAdHovered ? 2.3 : 1.0;
+                const targetZ = isAdHovered ? 0.35 : 0.06;
 
-                beerCanGroup.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.08);
-                beerCanGroup.position.z += (targetZ - beerCanGroup.position.z) * 0.08;
+                beerCanGroup.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
+                beerCanGroup.position.z += (targetZ - beerCanGroup.position.z) * 0.1;
 
-                // 缶の回転と氷結パーティクル回転
-                beerCanMesh.rotation.y += isAdHovered ? 0.05 : 0.015;
-                frostParticles.rotation.y -= 0.02;
-                frostParticles.rotation.z += 0.01;
-            } else {
-                sizzleCaption.style.opacity = '0';
-                beerCanGroup.position.z = 0.05;
-                beerCanGroup.scale.set(1.0, 1.0, 1.0);
+                if (isAdHovered) {
+                    beerCanMesh.rotation.y += 0.04;
+                    pulseRing.material.opacity = 0.9;
+                    pulseRing.scale.set(1.8, 1.8, 1.8);
+                } else {
+                    beerCanMesh.rotation.y += 0.005;
+                    pulseRing.material.opacity = 0.3;
+                    pulseRing.scale.set(1.0, 1.0, 1.0);
+                }
             }
 
             renderer.render(scene, camera);
