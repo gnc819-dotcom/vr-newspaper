@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Hologram Newspaper - Text Integrated Edition</title>
+    <title>3D Hologram Newspaper - High Density Text Edition</title>
     <style>
         body {
             margin: 0;
@@ -44,7 +44,7 @@
 </head>
 <body>
     <div id="vr-overlay">
-        <button id="enter-vr-btn" class="btn-vr">VRモード起動（本格記事入力版）</button>
+        <button id="enter-vr-btn" class="btn-vr">VRモード起動（新聞文字密度・完全再現版）</button>
     </div>
 
     <script>
@@ -77,7 +77,7 @@
             scene.add(newspaperGroup);
 
             // ==========================================
-            // 1. 高精細 2048x2048 Canvas（日本語テキスト描画）
+            // 1. 高精細 2048x2048 Canvas（新聞紙面・超高密度テキスト描画）
             // ==========================================
             const paperCanvas = document.createElement('canvas');
             paperCanvas.width = 2048;
@@ -90,98 +90,138 @@
 
             // 二重外枠
             ctx.strokeStyle = '#00ff88';
-            ctx.lineWidth = 12;
-            ctx.strokeRect(32, 32, 1984, 1984);
-            ctx.lineWidth = 4;
-            ctx.strokeRect(48, 48, 1952, 1952);
+            ctx.lineWidth = 10;
+            ctx.strokeRect(30, 30, 1988, 1988);
+            ctx.lineWidth = 2;
+            ctx.strokeRect(44, 44, 1960, 1960);
 
             // --- ヘッダー領域 ---
             // 題字ブロック（右上）
             ctx.fillStyle = '#00ff88';
-            ctx.fillRect(1450, 80, 500, 240);
+            ctx.fillRect(1400, 60, 580, 200);
             ctx.fillStyle = '#000000';
-            ctx.font = 'bold 76px "Hiragino Mincho ProN", "MS Mincho", serif';
-            ctx.fillText('空間日報', 1530, 220);
+            ctx.font = 'bold 88px "Hiragino Mincho ProN", "MS Mincho", serif';
+            ctx.fillText('空間日報', 1510, 190);
 
-            // 日付・号数情報
+            // 発行情報・日付（左上）
             ctx.fillStyle = '#00e1ff';
-            ctx.font = '36px sans-serif';
-            ctx.fillText('2026年 (令和8年) 9月22日 火曜日', 90, 120);
-            ctx.fillText('第32405号 | 3D HOLOGRAPHIC NEWSPAPER', 90, 180);
+            ctx.font = '28px sans-serif';
+            ctx.fillText('2026年 (令和8年) 9月22日 火曜日 【創刊号】', 60, 100);
+            ctx.fillText('発行所：空間新聞社 3D HOLOGRAPHIC MEDIA LAB', 60, 140);
+            ctx.fillText('規格：Q42 3D-Hologram Fan Compatible / 1024x1024 / 60fps', 60, 180);
 
-            // 区切り太線
+            // ヘッダー下区切り線
             ctx.strokeStyle = '#00e1ff';
-            ctx.lineWidth = 6;
+            ctx.lineWidth = 4;
             ctx.beginPath();
-            ctx.moveTo(80, 320);
-            ctx.lineTo(1968, 320);
+            ctx.moveTo(60, 280);
+            ctx.lineTo(1988, 280);
             ctx.stroke();
 
-            // --- メインニュース領域 ---
+            // --- メイン大見出し（トップ記事） ---
             ctx.fillStyle = '#00ff88';
-            ctx.font = 'bold 84px "Hiragino Sans", "Meiryo", sans-serif';
-            ctx.fillText('新時代へ 3Dホログラム新聞始動', 80, 440);
+            ctx.font = 'bold 72px "Hiragino Sans", "Meiryo", sans-serif';
+            ctx.fillText('3Dホログラム新聞、実用化へ始動', 60, 370);
 
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 48px sans-serif';
-            ctx.fillText('Q42規格とWebXRが融合 視覚表現の限界を突破', 80, 520);
+            ctx.font = 'bold 38px sans-serif';
+            ctx.fillText('〜 WebXRと立体透過表示技術が融合、紙面から飛び出す新ニュース体験 〜', 60, 430);
 
-            // 区切り細線
-            ctx.strokeStyle = '#444444';
-            ctx.lineWidth = 2;
+            // 主線
+            ctx.strokeStyle = '#00ff88';
+            ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.moveTo(80, 580);
-            ctx.lineTo(1968, 580);
+            ctx.moveTo(60, 470);
+            ctx.lineTo(1988, 470);
             ctx.stroke();
 
-            // --- 記事本文（テキスト流し込み） ---
-            ctx.fillStyle = '#cccccc';
-            ctx.font = '32px sans-serif';
-
-            // 右側メイン記事テキスト（折り返し描画関数）
-            const mainText = [
-                "【空間メディア取材班】紙面の制約を飛び出し、立体空間上に展開する新しい情報体「3Dホログラム新聞」の実機検証が始まった。",
-                "従来の平面ディスプレイと異なり、視覚的な奥行き（パララックス効果）を活用することで、重要見出しや報道写真が空間へ手前に飛び出す表現が可能となった。",
-                "特にQ42規格に対応した透過度制御と、WebXRによる没入レンダリング技術の組み合わせにより、情報へのアクセス体験が根本から進化している。"
-            ];
-
-            let lineY = 650;
-            mainText.forEach(paragraph => {
-                let words = paragraph.split('');
+            // --- 多段組（マルチカラム）高密度本文配置機能 ---
+            // 汎用テキスト流し込み関数
+            function fillColumnText(text, x, y, width, lineHeight, fontSize, color, maxLines) {
+                ctx.fillStyle = color;
+                ctx.font = `${fontSize}px sans-serif`;
+                let chars = text.split('');
                 let currentLine = '';
-                for (let n = 0; n < words.length; n++) {
-                    let testLine = currentLine + words[n];
+                let currentY = y;
+                let lineCount = 0;
+
+                for (let i = 0; i < chars.length; i++) {
+                    let testLine = currentLine + chars[i];
                     let metrics = ctx.measureText(testLine);
-                    if (metrics.width > 920 && n > 0) {
-                        ctx.fillText(currentLine, 980, lineY);
-                        currentLine = words[n];
-                        lineY += 46;
+                    if (metrics.width > width && i > 0) {
+                        ctx.fillText(currentLine, x, currentY);
+                        currentLine = chars[i];
+                        currentY += lineHeight;
+                        lineCount++;
+                        if (maxLines && lineCount >= maxLines) break;
                     } else {
                         currentLine = testLine;
                     }
                 }
-                ctx.fillText(currentLine, 980, lineY);
-                lineY += 60; // パラグラフ間隔
-            });
+                if (!maxLines || lineCount < maxLines) {
+                    ctx.fillText(currentLine, x, currentY);
+                }
+                return currentY + lineHeight;
+            }
 
-            // 左下コラム領域（見出し＋本文）
+            // サンプル長文データ
+            const sampleArticleA = "空間メディア取材班の試算によると、3Dホログラムによる新しい情報提示手法は、従来の平面ディスプレイと比較してユーザーの記憶定着率を約四十パーセント以上向上させる効果が確認された。本プロジェクトでは、3Dホログラムファン等の光学機器を用い、漆黒の背景領域（RGB:0,0,0）を透過させることで、文字やグラフィックのみを浮遊表示させる特殊なレンダリング方式を採用している。これにより、視覚的な疲労を最小限に抑えつつ、直感的なニュース把握が可能となった。今後は各地の自動販売機や店頭、さらには家庭内の空間ディスプレイに向けて、リアルタイムでの速報配信システムを構築していく方針である。";
+            
+            const sampleArticleB = "労働基準法および各種法規制への完全適応を目指した次世代ガバナンスチェック機能も本システムのバックエンドに組み込まれる。自動化されたコンプライアンス管理ツールは、最新のデータ解析アルゴリズムを活用し、契約書面や各種手続きの整合性をリアルタイムで評価する。新聞メディアが持つ信頼性と、先端AI技術の融合により、正確かつ迅速な情報提供プラットフォームの確立を目指す。";
+
+            const sampleArticleC = "【社説】立体空間におけるメディアの未来と課題。紙媒体が長年培ってきた「レイアウトによる情報の重み付け」は、デジタル空間においても極めて重要な要素である。ホログラム空間において単にテキストを表示するだけでなく、空間の奥行き（Z軸）を利用したプライオリティ表現が、これからのニュースデザインの標準となるだろう。";
+
+            // --- カラム配置（下部全領域を4つの主要エリアに分割し、ぎっしり配置） ---
+
+            // エリア1: 右側メイン詳細記事（2カラム）
+            ctx.fillStyle = '#00e1ff';
+            ctx.font = 'bold 30px sans-serif';
+            ctx.fillText('【詳細分析】空間プレゼンテーションの技術的背景', 1040, 520);
+            fillColumnText(sampleArticleA, 1040, 560, 440, 32, 20, '#cccccc', 22);
+            fillColumnText(sampleArticleB, 1510, 560, 440, 32, 20, '#cccccc', 22);
+
+            // カラム仕切り縦線
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(1490, 520); ctx.lineTo(1490, 1280); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(1010, 490); ctx.lineTo(1010, 1980); ctx.stroke();
+
+            // エリア2: 中央ホログラムフォト予約領域（左下）
+            // （フォトカードが重なる部分は透過考慮のレイアウト枠を設置）
+            ctx.strokeStyle = '#00ff88';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(60, 510, 920, 770);
             ctx.fillStyle = '#00ff88';
-            ctx.font = 'bold 44px sans-serif';
-            ctx.fillText('【解説】立体空間における可読性とUIデザイン', 80, 1340);
+            ctx.font = '22px sans-serif';
+            ctx.fillText('［ 3D HOLOGRAM PHOTO DISPLAY AREA ］', 80, 540);
 
-            ctx.fillStyle = '#bbbbbb';
-            ctx.font = '30px sans-serif';
-            const subText = [
-                "立体表示における最大の課題は、文字の背景透過による可読性の低下であった。",
-                "今回のシステムでは、背景に漆黒（RGB: 0,0,0）を厳密に配することでコントラストを高め、",
-                "視界を遮らない絶妙な透過感と文字の視認性を両立させることに成功した。"
-            ];
+            // 写真横の解説記事
+            fillColumnText("【写真解説】立体浮遊する報道フォトカード。最前面（Z:+12cm）に配置された3Dカードは、光の脈動とともにリアルタイムでアニメーションを行う。紙面から立体的に飛び出すことで、視覚的インパクトを最大化する設計となっている。", 560, 580, 400, 30, 19, '#aaaaaa', 22);
 
-            let subY = 1420;
-            subText.forEach(line => {
-                ctx.fillText(line, 80, subY);
-                subY += 48;
-            });
+            // エリア3: 紙面下部（5コラム編成の密集ニュース街）
+            ctx.strokeStyle = '#00e1ff';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(60, 1310); ctx.lineTo(1988, 1310); ctx.stroke();
+
+            ctx.fillStyle = '#00ff88';
+            ctx.font = 'bold 32px sans-serif';
+            ctx.fillText('【空間総合面】各種動向および次世代テクノロジー速報', 60, 1360);
+
+            // 下部 4カラム高密度テキスト充填
+            const colWidth = 440;
+            fillColumnText("【技術検証】Q42ホログラムファンにおける60fps同期レンダリングの最適化実験が完了。残像感を極限まで低減した鮮明な描画を実現。", 60, 1410, colWidth, 28, 18, '#bbbbbb', 18);
+            fillColumnText("【地域経済】地方自治体におけるデジタルサイネージのホログラム化構想が浮上。観光案内や防災情報の立体表示など幅広い活用が期待される。", 540, 1410, colWidth, 28, 18, '#bbbbbb', 18);
+            fillColumnText(sampleArticleC, 1040, 1410, colWidth, 28, 18, '#bbbbbb', 18);
+            fillColumnText("【国際動向】WebXR標準化仕様の策定が進む中、立体新聞フォーマットの互換性確保に向けた業界団体の設立が提案された。各国のメディア企業が関心を寄せる。", 1520, 1410, colWidth, 28, 18, '#bbbbbb', 18);
+
+            // 下部縦仕切り線
+            for(let x = 510; x < 1900; x += 480) {
+                ctx.beginPath(); ctx.moveTo(x, 1380); ctx.lineTo(x, 1980); ctx.stroke();
+            }
+
+            // 最下部フッターフチ
+            ctx.fillStyle = '#00ff88';
+            ctx.fillRect(60, 1990, 1928, 10);
 
             // Canvasテクスチャ作成
             const paperTexture = new THREE.CanvasTexture(paperCanvas);
@@ -248,7 +288,7 @@
             cCtx.fillText('HOLOGRAM PHOTO', 256, 300);
 
             const cardTexture = new THREE.CanvasTexture(cardCanvas);
-            const cardGeo = new THREE.BoxGeometry(0.3, 0.3, 0.02);
+            const cardGeo = new THREE.BoxGeometry(0.28, 0.22, 0.02);
             const cardMat = new THREE.MeshStandardMaterial({
                 map: cardTexture,
                 roughness: 0.1,
@@ -256,7 +296,7 @@
             });
 
             photoCard = new THREE.Mesh(cardGeo, cardMat);
-            photoCard.position.set(-0.2, -0.05, 0.12);
+            photoCard.position.set(-0.2, 0.0, 0.12);
             newspaperGroup.add(photoCard);
 
             // ==========================================
@@ -290,10 +330,10 @@
 
         function render(time) {
             if (newspaperGroup) {
-                newspaperGroup.rotation.y = Math.sin(time * 0.0008) * 0.12; // 首振りアニメーション
+                newspaperGroup.rotation.y = Math.sin(time * 0.0008) * 0.12;
             }
             if (photoCard) {
-                photoCard.position.y = -0.05 + Math.sin(time * 0.002) * 0.015; // 浮遊
+                photoCard.position.y = 0.0 + Math.sin(time * 0.002) * 0.015;
                 photoCard.rotation.y = Math.sin(time * 0.001) * 0.15;
             }
             renderer.render(scene, camera);
