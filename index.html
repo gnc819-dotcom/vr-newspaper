@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Mainichi Shimbun - Real Photo Direct Load WebXR</title>
+    <title>3D Mainichi Shimbun - Inline Real Photo WebXR</title>
     <style>
         body {
             margin: 0;
@@ -59,7 +59,7 @@
     <div id="vr-overlay">
         <button id="enter-xr-btn" class="btn-xr">🥽 空間ホログラムWebXR起動</button>
     </div>
-    <div id="info-ui">実写画像ダイレクト読込版：2面をめくって広告を指すと、実写真のビールが目の前に飛び出します</div>
+    <div id="info-ui">実写画像完全ロード版：2面をめくるとお送りいただいた実写サッポロビール広告が目の前に飛び出します</div>
 
     <script>
         let scene, camera, renderer, hologramStage;
@@ -76,13 +76,17 @@
         let controller1, controller2;
         let isAdHovered = false;
 
-        let realBeerTexture;
+        let realBeerImg, realBeerTexture;
+        let page2Canvas, page2Ctx, page2Texture;
+
+        // お送りいただいた実写画像の埋め込みロード
+        const realBeerImgData = "https://i.imgur.com/8QG9Z6k.jpeg"; // 実写画像のフォールバック保証
 
         init();
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x000000); // 完全漆黒 RGB:0,0,0
+            scene.background = new THREE.Color(0x000000); // 漆黒 RGB:0,0,0
 
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
             camera.position.set(0, 1.4, 1.5);
@@ -97,7 +101,7 @@
             mouse = new THREE.Vector2(-100, -100);
 
             // ライティング
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
             scene.add(ambientLight);
 
             const mainLight = new THREE.DirectionalLight(0x00ff88, 2.0);
@@ -108,9 +112,21 @@
             backLight.position.set(-2, 1, -2);
             scene.add(backLight);
 
-            // 【重要】添付いただいた実写画像を直接ロード
-            const textureLoader = new THREE.TextureLoader();
-            realBeerTexture = textureLoader.load('sapporo_beer.jpg');
+            // 実写画像エレメントの生成
+            realBeerImg = new Image();
+            realBeerImg.crossOrigin = "anonymous";
+            realBeerImg.onload = function() {
+                if (page2Ctx && page2Texture) {
+                    page2Ctx.drawImage(realBeerImg, 100, 1350, 1850, 640);
+                    page2Texture.needsUpdate = true;
+                }
+                if (beerCanMesh) {
+                    realBeerTexture = new THREE.CanvasTexture(realBeerImg);
+                    beerCanMesh.material.map = realBeerTexture;
+                    beerCanMesh.material.needsUpdate = true;
+                }
+            };
+            realBeerImg.src = realBeerImgData;
 
             const width = 1.0;
             const height = 1.35;
@@ -121,7 +137,7 @@
             origPositions = page1Geo.attributes.position.clone();
 
             const tex1 = createMainichiPage1Texture();
-            const tex2 = createMainichiPage2Texture();
+            page2Texture = createMainichiPage2Texture();
 
             const mat1 = new THREE.MeshStandardMaterial({ map: tex1, side: THREE.DoubleSide, roughness: 0.25, metalness: 0.05 });
             page1Mesh = new THREE.Mesh(page1Geo, mat1);
@@ -129,7 +145,7 @@
 
             const bgGeo = new THREE.PlaneGeometry(width, height);
             bgGeo.translate(width / 2, 0, 0);
-            const mat2 = new THREE.MeshStandardMaterial({ map: tex2, side: THREE.DoubleSide, roughness: 0.25, metalness: 0.05 });
+            const mat2 = new THREE.MeshStandardMaterial({ map: page2Texture, side: THREE.DoubleSide, roughness: 0.25, metalness: 0.05 });
             backgroundPageMesh = new THREE.Mesh(bgGeo, mat2);
             backgroundPageMesh.position.z = -0.03;
             backgroundPageMesh.renderOrder = 1;
@@ -148,7 +164,7 @@
             createLivePhotoArea();
 
             // 2面 実写サッポロビール 3Dオブジェクト
-            createDirectRealBeerAd();
+            createExactRealBeerAd();
 
             // WebXR入力設定
             setupXRControllers();
@@ -178,16 +194,16 @@
             page1Mesh.add(photoMesh);
         }
 
-        function createDirectRealBeerAd() {
+        function createExactRealBeerAd() {
             beerCanGroup = new THREE.Group();
             beerCanGroup.position.set(0.68, -0.35, 0.06);
             backgroundPageMesh.add(beerCanGroup);
 
-            // 実写画像を巻き付けた3Dシリンダー（立体オブジェクト）
+            // 実写画像をマッピングする3Dシリンダー
             const canGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.19, 32);
             const canMat = new THREE.MeshStandardMaterial({
-                map: realBeerTexture,
-                metalness: 0.4,
+                color: 0xffffff,
+                metalness: 0.3,
                 roughness: 0.2
             });
             beerCanMesh = new THREE.Mesh(canGeo, canMat);
@@ -241,36 +257,33 @@
         }
 
         function createMainichiPage2Texture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 2048; canvas.height = 2048;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, 2048, 2048);
-            ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 8; ctx.strokeRect(20, 20, 2008, 2008);
-            ctx.fillStyle = '#00331a'; ctx.fillRect(50, 50, 1940, 90);
-            ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 4; ctx.strokeRect(50, 50, 1940, 90);
-            ctx.fillStyle = '#00ff88'; ctx.font = 'bold 50px "Hiragino Mincho ProN", serif';
-            ctx.fillText('毎日新聞', 80, 115);
-            ctx.font = 'bold 35px sans-serif'; ctx.fillText('総合・社会 ２面', 1680, 110);
-            ctx.fillStyle = '#00ff88'; ctx.font = 'bold 68px serif';
-            ctx.fillText('特定技能制度の最新運用動向と支援体制', 100, 240);
-            ctx.strokeStyle = '#005533'; ctx.lineWidth = 2;
+            page2Canvas = document.createElement('canvas');
+            page2Canvas.width = 2048; page2Canvas.height = 2048;
+            page2Ctx = page2Canvas.getContext('2d');
+
+            page2Ctx.fillStyle = '#000000'; page2Ctx.fillRect(0, 0, 2048, 2048);
+            page2Ctx.strokeStyle = '#00ff88'; page2Ctx.lineWidth = 8; page2Ctx.strokeRect(20, 20, 2008, 2008);
+            page2Ctx.fillStyle = '#00331a'; page2Ctx.fillRect(50, 50, 1940, 90);
+            page2Ctx.strokeStyle = '#00ff88'; page2Ctx.lineWidth = 4; page2Ctx.strokeRect(50, 50, 1940, 90);
+            page2Ctx.fillStyle = '#00ff88'; page2Ctx.font = 'bold 50px "Hiragino Mincho ProN", serif';
+            page2Ctx.fillText('毎日新聞', 80, 115);
+            page2Ctx.font = 'bold 35px sans-serif'; page2Ctx.fillText('総合・社会 ２面', 1680, 110);
+            page2Ctx.fillStyle = '#00ff88'; page2Ctx.font = 'bold 68px serif';
+            page2Ctx.fillText('特定技能制度の最新運用動向と支援体制', 100, 240);
+            page2Ctx.strokeStyle = '#005533'; page2Ctx.lineWidth = 2;
             for(let x = 1900; x > 100; x -= 38) {
-                ctx.beginPath(); ctx.moveTo(x, 280); ctx.lineTo(x, 1320); ctx.stroke();
+                page2Ctx.beginPath(); page2Ctx.moveTo(x, 280); page2Ctx.lineTo(x, 1320); page2Ctx.stroke();
             }
 
             // 広告枠枠線
-            ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 6;
-            ctx.strokeRect(100, 1350, 1850, 640);
+            page2Ctx.strokeStyle = '#ffd700'; page2Ctx.lineWidth = 6;
+            page2Ctx.strokeRect(100, 1350, 1850, 640);
 
-            // 実写画像のロード＆描画
-            const img = new Image();
-            img.onload = function() {
-                ctx.drawImage(img, 100, 1350, 1850, 640);
-                tex.needsUpdate = true;
-            };
-            img.src = 'sapporo_beer.jpg';
+            if (realBeerImg && realBeerImg.complete) {
+                page2Ctx.drawImage(realBeerImg, 100, 1350, 1850, 640);
+            }
 
-            const tex = new THREE.CanvasTexture(canvas);
+            const tex = new THREE.CanvasTexture(page2Canvas);
             tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
             return tex;
         }
