@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Mainichi Shimbun - True Holographic WebXR Edition</title>
+    <title>3D Mainichi Shimbun - Full Interactive WebXR</title>
     <style>
         body {
             margin: 0;
@@ -59,7 +59,7 @@
     <div id="vr-overlay">
         <button id="enter-xr-btn" class="btn-xr">🥽 空間ホログラムWebXR起動</button>
     </div>
-    <div id="info-ui">空間に浮遊するホログラム新聞：ドラッグで紙をめくるとLIVEPHOTOと冷えた黒ラベルが飛び出します</div>
+    <div id="info-ui">VR空間内：トリガー引きで「紙めくり」 / ビール広告を指して「3D飛び出し」</div>
 
     <script>
         let scene, camera, renderer, hologramStage;
@@ -73,6 +73,7 @@
         let beerCanGroup, beerCanMesh, pulseRing, iceParticles;
         let videoCanvas, videoCtx, videoTexture;
         let raycaster, mouse;
+        let controller1, controller2;
         let isAdHovered = false;
 
         init();
@@ -81,20 +82,19 @@
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000); // 完全漆黒 (RGB: 0,0,0)
 
-            // 視差と奥行き感を強調する広角カメラ
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 1.4, 1.5); // プレイヤーの目線の高さに設定
+            camera.position.set(0, 1.4, 1.5);
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.0));
-            renderer.xr.enabled = true; // WebXR必須設定
+            renderer.xr.enabled = true; // WebXR有効化
             document.body.appendChild(renderer.domElement);
 
             raycaster = new THREE.Raycaster();
             mouse = new THREE.Vector2(-100, -100);
 
-            // 多方向立体ホログラムライティング
+            // ライティング
             const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
             scene.add(ambientLight);
 
@@ -109,7 +109,7 @@
             const width = 1.0;
             const height = 1.35;
 
-            // 64x64高密度メッシュ
+            // 64x64 高密度メッシュ
             page1Geo = new THREE.PlaneGeometry(width, height, 64, 64);
             page1Geo.translate(width / 2, 0, 0);
             origPositions = page1Geo.attributes.position.clone();
@@ -128,25 +128,29 @@
             backgroundPageMesh.position.z = -0.03;
             backgroundPageMesh.renderOrder = 1;
 
-            // 【完全復元】ホログラムステージ：空間上に立体的に浮かせる構造
+            // ホログラムステージ配置
             hologramStage = new THREE.Group();
-            hologramStage.position.set(-0.5, 1.3, -1.2); // 目の前1.2m、高さ1.3mの位置に浮遊
-            hologramStage.rotation.x = 0.12;  // わずかに手前に傾ける
-            hologramStage.rotation.y = -0.18; // 立体感の出る斜め角度
+            hologramStage.position.set(-0.5, 1.3, -1.2);
+            hologramStage.rotation.x = 0.12;
+            hologramStage.rotation.y = -0.18;
             scene.add(hologramStage);
 
             hologramStage.add(page1Mesh);
             hologramStage.add(backgroundPageMesh);
 
-            // LIVEPHOTO (1面)
+            // 1面 LIVE PHOTO
             createLivePhotoArea();
 
-            // キンキンに冷えた黒ラベル 3D立体広告 (2面)
+            // 2面 サッポロ黒ラベル 3D広告
             createColdBeerAd();
+
+            // WebXR コントローラー入力イベントのバインド
+            setupXRControllers();
 
             // WebXR 起動セットアップ
             setupWebXR();
 
+            // 2D/タッチ操作バックアップ
             window.addEventListener('mousedown', onMouseDown);
             window.addEventListener('mousemove', onMouseMove);
             window.addEventListener('mouseup', onMouseUp);
@@ -195,7 +199,6 @@
             pulseRing.position.y = -0.085;
             beerCanGroup.add(pulseRing);
 
-            // 氷結パーティクル
             const pGeo = new THREE.BufferGeometry();
             const pCount = 60;
             const posArray = new Float32Array(pCount * 3);
@@ -263,7 +266,7 @@
             return tex;
         }
 
-        // しなやかな紙のCurly変形計算
+        // しなやかな紙のCurl変形計算
         function applyPageCurl(geo, progress) {
             const pos = geo.attributes.position;
             const count = pos.count;
@@ -309,6 +312,21 @@
             videoCtx.fillStyle = '#00ff88'; videoCtx.font = 'bold 22px sans-serif';
             videoCtx.fillText('［ LIVE PHOTO STREAM ］ 60fps Dynamic', 15, 358);
             videoTexture.needsUpdate = true;
+        }
+
+        // WebXRゴーグル内コントローラー入力イベントハンドラ
+        function setupXRControllers() {
+            controller1 = renderer.xr.getController(0);
+            controller1.addEventListener('selectstart', () => {
+                targetProgress = targetProgress === 0 ? 1 : 0; // トリガー引きでページ切替
+            });
+            scene.add(controller1);
+
+            controller2 = renderer.xr.getController(1);
+            controller2.addEventListener('selectstart', () => {
+                targetProgress = targetProgress === 0 ? 1 : 0;
+            });
+            scene.add(controller2);
         }
 
         function setupWebXR() {
@@ -366,13 +384,24 @@
 
             if (iceParticles) iceParticles.rotation.y += 0.02;
 
-            if (dragProgress > 0.4) {
+            // VR空間ポインター/視線でのアテンション判定
+            let checkMesh = beerCanMesh;
+            if (renderer.xr.isPresenting && controller1) {
+                // XR空間でのコントローラーレイ判定
+                const tempMatrix = new THREE.Matrix4();
+                tempMatrix.identity().extractRotation(controller1.matrixWorld);
+                raycaster.ray.origin.setFromMatrixPosition(controller1.matrixWorld);
+                raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+            } else {
                 raycaster.setFromCamera(mouse, camera);
+            }
+
+            if (dragProgress > 0.4) {
                 const intersects = raycaster.intersectObject(beerCanMesh);
                 isAdHovered = intersects.length > 0;
 
                 const targetScale = isAdHovered ? 2.8 : 1.0;
-                const targetZ = isAdHovered ? 0.50 : 0.06; // 目の前（カメラ直近）まで立体飛び出し
+                const targetZ = isAdHovered ? 0.50 : 0.06;
 
                 beerCanGroup.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
                 beerCanGroup.position.z += (targetZ - beerCanGroup.position.z) * 0.1;
