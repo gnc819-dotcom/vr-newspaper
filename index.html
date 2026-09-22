@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Newspaper - Meta Quest 3 WebXR</title>
+    <title>3D Hologram Newspaper - Upgrade</title>
     <style>
         body {
             margin: 0;
@@ -11,7 +11,7 @@
             width: 100vw;
             height: 100vh;
             overflow: hidden;
-            background-color: #000000; /* 漆黒 RGB:0,0,0 */
+            background-color: #000000;
             font-family: sans-serif;
         }
         #vr-overlay {
@@ -38,137 +38,150 @@
             color: #000000;
         }
     </style>
+    <!-- Three.js & FontLoader / TextGeometry -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/TextGeometry.js"></script>
 </head>
 <body>
     <div id="vr-overlay">
-        <button id="enter-vr-btn" class="btn-vr">VRモード起動（新聞表示）</button>
+        <button id="enter-vr-btn" class="btn-vr">VRモード起動（立体テキスト版）</button>
     </div>
 
     <script>
-        let scene, camera, renderer, newspaperGroup;
+        let scene, camera, renderer, newspaperGroup, photoCard;
 
         init();
 
         function init() {
-            // 1. シーン構築 (背景: 漆黒 RGB 0,0,0)
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000);
 
-            // 2. カメラ
             camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 1.6, 1.0); // 目線の高さ1.6m
+            camera.position.set(0, 1.6, 1.0);
 
-            // 3. レンダラー
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.xr.enabled = true; // WebXRの有効化
+            renderer.xr.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            // 4. ライティング
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
             scene.add(ambientLight);
 
-            const dirLight = new THREE.DirectionalLight(0x00ff88, 1.2);
-            dirLight.position.set(1, 2, 1);
-            scene.add(dirLight);
+            const pointLight = new THREE.PointLight(0x00ff88, 2, 10);
+            pointLight.position.set(0, 2, 0.5);
+            scene.add(pointLight);
 
-            // 5. 新聞グループ（空間に浮遊配置）
             newspaperGroup = new THREE.Group();
-            newspaperGroup.position.set(0, 1.5, -1.0); // 目の前1mに配置
+            newspaperGroup.position.set(0, 1.5, -1.0);
             scene.add(newspaperGroup);
 
-            // --- 新聞テクスチャの動的生成（1024x1024 Canvas） ---
+            // --- 1. 高精細キャンバス（紙面ベース） ---
             const paperCanvas = document.createElement('canvas');
             paperCanvas.width = 1024;
             paperCanvas.height = 1024;
             const ctx = paperCanvas.getContext('2d');
 
-            // 背景：漆黒 (RGB: 0,0,0)
+            // 漆黒背景
             ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, 1024, 1024);
 
-            // 外枠ガイド（緑）
+            // ネオン枠線
             ctx.strokeStyle = '#00ff88';
-            ctx.lineWidth = 6;
-            ctx.strokeRect(12, 12, 1000, 1000);
+            ctx.lineWidth = 8;
+            ctx.strokeRect(16, 16, 992, 992);
 
-            // 題字エリア（右上配置）
+            // 題字エリア
             ctx.fillStyle = '#00ff88';
-            ctx.fillRect(680, 40, 300, 120);
+            ctx.fillRect(650, 40, 330, 120);
             ctx.fillStyle = '#000000';
-            ctx.font = 'bold 44px sans-serif';
-            ctx.fillText('3Dホログラム新聞', 690, 110);
+            ctx.font = 'bold 40px sans-serif';
+            ctx.fillText('3D DAILY NEWS', 665, 110);
 
-            // 日付・版数ライン
-            ctx.fillStyle = '#ffffff';
-            ctx.font = '22px sans-serif';
-            ctx.fillText('2026年 朝刊 | 第1号 (Q42規格 1024x1024)', 40, 80);
+            // 日付・見出しライン
+            ctx.fillStyle = '#00e1ff';
+            ctx.font = '24px monospace';
+            ctx.fillText('2026.09.22 | SPECIAL EDITION', 40, 70);
 
-            // 主見出し領域
-            ctx.fillStyle = '#00ff88';
-            ctx.font = 'bold 56px serif';
-            ctx.fillText('次世代 空間紙面UI始動', 40, 200);
-
-            // 記事本文ダミーライン
-            ctx.fillStyle = '#aaaaaa';
-            for (let i = 0; i < 12; i++) {
-                ctx.fillRect(520, 320 + (i * 35), 450, 12);
+            // 記事本文ライン（ハイコントラスト表示）
+            ctx.fillStyle = '#666666';
+            for (let i = 0; i < 14; i++) {
+                ctx.fillRect(500, 260 + (i * 32), 470, 8);
             }
-            for (let i = 0; i < 8; i++) {
-                ctx.fillRect(40, 720 + (i * 32), 930, 10);
+            for (let i = 0; i < 10; i++) {
+                ctx.fillRect(40, 680 + (i * 28), 930, 6);
             }
 
             const paperTexture = new THREE.CanvasTexture(paperCanvas);
-
-            // --- 3Dオブジェクトのレイヤー構築 ---
-            
-            // 【Layer 1: ベース紙面】
             const baseGeo = new THREE.PlaneGeometry(0.8, 0.8);
             const baseMat = new THREE.MeshBasicMaterial({ map: paperTexture, side: THREE.DoubleSide });
             const baseMesh = new THREE.Mesh(baseGeo, baseMat);
             newspaperGroup.add(baseMesh);
 
-            // 【Layer 2: 飛び出す主見出し（+5cm手前）】
-            const titleGeo = new THREE.BoxGeometry(0.55, 0.08, 0.04);
-            const titleMat = new THREE.MeshStandardMaterial({ color: 0x00ff88, metalness: 0.3 });
-            const titleMesh = new THREE.Mesh(titleGeo, titleMat);
-            titleMesh.position.set(-0.1, 0.24, 0.05);
-            newspaperGroup.add(titleMesh);
+            // --- 2. 飛び出す立体3D文字（TextGeometry） ---
+            const loader = new THREE.FontLoader();
+            // Google Open Source Font
+            loader.load('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/fonts/helvetiker_bold.typeface.json', function (font) {
+                const textGeo = new THREE.TextGeometry('3D NEWSPAPER', {
+                    font: font,
+                    size: 0.05,
+                    height: 0.015, // 奥行き・厚み
+                    curveSegments: 12,
+                    bevelEnabled: true,
+                    bevelThickness: 0.002,
+                    bevelSize: 0.001,
+                    bevelSegments: 5
+                });
 
-            // 【Layer 3: 飛び出す立体写真ブロック（+8cm手前）】
-            const photoCanvas = document.createElement('canvas');
-            photoCanvas.width = 256;
-            photoCanvas.height = 256;
-            const pCtx = photoCanvas.getContext('2d');
-            const grad = pCtx.createLinearGradient(0, 0, 256, 256);
-            grad.addColorStop(0, '#00aeff');
+                const textMat = new THREE.MeshStandardMaterial({
+                    color: 0x00ff88,
+                    emissive: 0x004422,
+                    metalness: 0.8,
+                    roughness: 0.2
+                });
+
+                const textMesh = new THREE.Mesh(textGeo, textMat);
+                textMesh.position.set(-0.36, 0.22, 0.06); // 手前6cmに配置
+                newspaperGroup.add(textMesh);
+            });
+
+            // --- 3. 手前に最前面で浮遊するホログラムフォトカード（Z: +12cm） ---
+            const cardCanvas = document.createElement('canvas');
+            cardCanvas.width = 512;
+            cardCanvas.height = 512;
+            const cCtx = cardCanvas.getContext('2d');
+
+            const grad = cCtx.createRadialGradient(256, 256, 20, 256, 256, 256);
+            grad.addColorStop(0, '#00e1ff');
+            grad.addColorStop(0.8, '#001133');
             grad.addColorStop(1, '#00ff88');
-            pCtx.fillStyle = grad;
-            pCtx.fillRect(0, 0, 256, 256);
-            pCtx.fillStyle = '#ffffff';
-            pCtx.font = 'bold 24px sans-serif';
-            pCtx.fillText('3D PHOTO AREA', 30, 130);
+            cCtx.fillStyle = grad;
+            cCtx.fillRect(0, 0, 512, 512);
 
-            const photoTexture = new THREE.CanvasTexture(photoCanvas);
-            const photoGeo = new THREE.BoxGeometry(0.32, 0.32, 0.08);
-            const photoMaterials = [
-                new THREE.MeshStandardMaterial({ color: 0x00aeff }), // 右
-                new THREE.MeshStandardMaterial({ color: 0x00aeff }), // 左
-                new THREE.MeshStandardMaterial({ color: 0x00aeff }), // 上
-                new THREE.MeshStandardMaterial({ color: 0x00aeff }), // 下
-                new THREE.MeshStandardMaterial({ map: photoTexture }), // 正面
-                new THREE.MeshStandardMaterial({ color: 0x00aeff })  // 背面
-            ];
+            cCtx.strokeStyle = '#ffffff';
+            cCtx.lineWidth = 10;
+            cCtx.strokeRect(20, 20, 472, 472);
 
-            const photoMesh = new THREE.Mesh(photoGeo, photoMaterials);
-            photoMesh.position.set(-0.2, -0.08, 0.08);
-            newspaperGroup.add(photoMesh);
+            cCtx.fillStyle = '#ffffff';
+            cCtx.font = 'bold 36px sans-serif';
+            cCtx.textAlign = 'center';
+            cCtx.fillText('HOLOGRAM PHOTO', 256, 270);
 
-            // 6. WebXR 起動処理
+            const cardTexture = new THREE.CanvasTexture(cardCanvas);
+            const cardGeo = new THREE.BoxGeometry(0.3, 0.3, 0.02);
+            const cardMat = new THREE.MeshStandardMaterial({
+                map: cardTexture,
+                roughness: 0.1,
+                metalness: 0.5
+            });
+
+            photoCard = new THREE.Mesh(cardGeo, cardMat);
+            photoCard.position.set(-0.18, -0.08, 0.12); // 最前面12cm
+            newspaperGroup.add(photoCard);
+
+            // WebXR 起動
             const vrBtn = document.getElementById('enter-vr-btn');
-
             if ('xr' in navigator) {
                 navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
                     if (supported) {
@@ -194,9 +207,14 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        function render() {
+        function render(time) {
             if (newspaperGroup) {
-                newspaperGroup.rotation.y += 0.003; // 立体感確認用の低速回転
+                newspaperGroup.rotation.y = Math.sin(time * 0.0008) * 0.15; // 左右に低速首振り
+            }
+            if (photoCard) {
+                // 最前面のフォトカードがわずかに上下に浮遊＋自転
+                photoCard.position.y = -0.08 + Math.sin(time * 0.002) * 0.02;
+                photoCard.rotation.y = Math.sin(time * 0.001) * 0.2;
             }
             renderer.render(scene, camera);
         }
