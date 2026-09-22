@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Hologram Mainichi Newspaper - Anti-Flicker Edition</title>
+    <title>3D Hologram Mainichi Newspaper - Video & 3D Ad Edition</title>
     <style>
         body {
             margin: 0;
@@ -44,11 +44,13 @@
 </head>
 <body>
     <div id="vr-overlay">
-        <button id="enter-vr-btn" class="btn-vr">VRモード起動（チラつき自動補正版）</button>
+        <button id="enter-vr-btn" class="btn-vr">VRモード起動（動画＆3D広告組み込み版）</button>
     </div>
 
     <script>
-        let scene, camera, renderer, newspaperGroup, photoCard;
+        let scene, camera, renderer, newspaperGroup;
+        let photoCard, videoCanvas, videoCtx, videoTexture;
+        let adMeshGroup, adCube;
 
         init();
 
@@ -59,10 +61,9 @@
             camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
             camera.position.set(0, 1.6, 1.0);
 
-            // 【自動補正1】アンチエイリアス処理の有効化
+            // チラつき補正アンチエイリアス設定
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            // 【自動補正2】デバイス高解像度ピクセル比の適用（Quest 3最適化）
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.0));
             renderer.xr.enabled = true;
             document.body.appendChild(renderer.domElement);
@@ -70,16 +71,20 @@
             const ambientLight = new THREE.AmbientLight(0xffffff, 1.3);
             scene.add(ambientLight);
 
-            const pointLight = new THREE.PointLight(0x00ff88, 2, 10);
+            const pointLight = new THREE.PointLight(0x00ff88, 2.5, 10);
             pointLight.position.set(0, 2, 0.5);
             scene.add(pointLight);
+
+            const adLight = new THREE.PointLight(0x00e1ff, 2, 5);
+            adLight.position.set(0.2, 1.0, 0.2);
+            scene.add(adLight);
 
             newspaperGroup = new THREE.Group();
             newspaperGroup.position.set(0, 1.5, -1.0);
             scene.add(newspaperGroup);
 
             // ==========================================
-            // 毎日新聞 １面 超高密度キャンバス (2048x2048)
+            // 1. 毎日新聞 １面 超高密度キャンバス (2048x2048)
             // ==========================================
             const paperCanvas = document.createElement('canvas');
             paperCanvas.width = 2048;
@@ -97,25 +102,23 @@
             ctx.lineWidth = 2;
             ctx.strokeRect(32, 32, 1984, 1984);
 
-            // 1. 毎日新聞 伝統題字エリア（右上）
+            // 題字エリア（右上）
             ctx.fillStyle = '#00ff88';
             ctx.fillRect(1520, 50, 470, 260);
             ctx.fillStyle = '#000000';
             ctx.font = 'bold 110px "Hiragino Mincho ProN", "MS Mincho", "Yu Mincho", serif';
             
-            // 縦書き題字「毎日新聞」
             const titleStr = "毎日新聞";
             for(let i = 0; i < titleStr.length; i++) {
                 ctx.fillText(titleStr[i], 1750 - (i >= 2 ? 110 : 0), 150 + (i % 2) * 120);
             }
 
-            // 題字横の発行情報・日付
             ctx.fillStyle = '#00e1ff';
             ctx.font = '22px sans-serif';
             ctx.fillText('2026年 (令和8年) 9月22日 (火曜日)', 1530, 275);
             ctx.fillText('朝刊 第42890号 / 毎日新聞社', 1530, 300);
 
-            // 天気予報枠（題字左）
+            // 天気予報枠
             ctx.strokeStyle = '#00e1ff';
             ctx.lineWidth = 2;
             ctx.strokeRect(1250, 50, 250, 260);
@@ -128,19 +131,18 @@
             ctx.fillText('名古屋: 晴れ 27℃/19℃', 1260, 210);
             ctx.fillText('福岡: くもり 25℃/21℃', 1260, 250);
 
-            // 1面ヘッダー線
             ctx.strokeStyle = '#00e1ff';
             ctx.lineWidth = 4;
             ctx.beginPath(); ctx.moveTo(50, 330); ctx.lineTo(1990, 330); ctx.stroke();
 
-            // 2. トップニュース大見出し（黒白反転・極太表示）
+            // トップニュース大見出し
             ctx.fillStyle = '#00ff88';
             ctx.fillRect(50, 350, 1940, 110);
             ctx.fillStyle = '#000000';
             ctx.font = 'bold 76px "Hiragino Sans", "Meiryo", sans-serif';
             ctx.fillText('ホログラム空間新聞 実用化へ大幅前進', 80, 432);
 
-            // 3. 毎日新聞名物コラム「余録」（左下枠）
+            // 余録（左下枠）
             ctx.strokeStyle = '#00ff88';
             ctx.lineWidth = 3;
             ctx.strokeRect(50, 1350, 600, 640);
@@ -150,7 +152,6 @@
             ctx.font = 'bold 28px serif';
             ctx.fillText('余 録 (よろく)', 70, 1382);
 
-            // 余録 本文流し込み
             ctx.fillStyle = '#cccccc';
             ctx.font = '20px serif';
             const yorokuText = [
@@ -171,7 +172,7 @@
                 ctx.fillText(yorokuText[i], 75, 1430 + (i * 44));
             }
 
-            // 4. 高密度多段組テキスト描画関数
+            // ニュース記事群
             function fillVerticalNews(title, body, x, y, width, height) {
                 ctx.strokeStyle = '#333333';
                 ctx.lineWidth = 1;
@@ -197,34 +198,38 @@
                 }
             }
 
-            // 主用ニュース記事群
             fillVerticalNews("【総合面】Q42ホログラムファン対応", "空間新聞プロジェクトはQ42規格の立体透過表示装置に対応した新フォーマットを発表した。60fpsの高速描画と漆黒背景の完全透過により、チラつきのない鮮明な視認性を実現した。", 680, 480, 600, 380);
             fillVerticalNews("【経済面】次世代サイネージ市場拡大", "ホログラム表示技術の発展に伴い、店頭や公共機関における立体サイネージの導入が加速している。従来の平面モニターと比較して歩行者の注視時間が約三倍に増加することが実証された。", 1310, 480, 680, 380);
             fillVerticalNews("【社会面】労働法規と自動チェック", "特定技能外国人登録支援機関や各種労働環境のコンプライアンス遵守を目的としたAI検証ツールが導入され、正確な法適合チェックが行われている。", 680, 880, 1310, 440);
-            fillVerticalNews("【国際面】WebXR標準化の最新動向", "世界各国の主要メディアが空間コンピューティングへの移行を推進中。3D空間におけるニュースレイアウトの標準規格策定に向けた討議が始まっている。", 680, 1350, 1310, 640);
 
-            // ==========================================
-            // 【自動補正3〜5】Three.js テクスチャ描画の高品質化設定
-            // ==========================================
-            const paperTexture = new THREE.CanvasTexture(paperCanvas);
-            
-            // ミップマップ自動生成（遠近変化時のモアレ・チラつき防止）
-            paperTexture.generateMipmaps = true;
-            paperTexture.minFilter = THREE.LinearMipmapLinearFilter; // 最適ミップマップフィルタ
-            paperTexture.magFilter = THREE.LinearFilter;
-            
-            // 異方性フィルタリングをGPU最大値に設定（斜め表示の文字のチラつき・ボケ防止）
+            // --- 紙面下部 3D空間広告予約エリア（紙面上のガイド表示） ---
+            ctx.strokeStyle = '#00e1ff';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(680, 1350, 1310, 640);
+            ctx.fillStyle = '#001122';
+            ctx.fillRect(680, 1350, 1310, 640);
+
+            ctx.fillStyle = '#00e1ff';
+            ctx.font = 'bold 36px sans-serif';
+            ctx.fillText('［ 3D HOLOGRAM SPATIAL ADVERTISEMENT ZONE ］', 720, 1420);
+            ctx.fillStyle = '#888888';
+            ctx.font = '22px sans-serif';
+            ctx.fillText('紙面から飛び出す3D空間広告。高単価プレミアム広告枠として展開可能。', 720, 1470);
+
+            // 紙面テクスチャ高品質化設定
             const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+            const paperTexture = new THREE.CanvasTexture(paperCanvas);
+            paperTexture.generateMipmaps = true;
+            paperTexture.minFilter = THREE.LinearMipmapLinearFilter;
             paperTexture.anisotropy = maxAnisotropy;
 
-            // ベース紙面メッシュ（Z: 0cm）
             const baseGeo = new THREE.PlaneGeometry(0.8, 0.8);
             const baseMat = new THREE.MeshBasicMaterial({ map: paperTexture, side: THREE.DoubleSide });
             const baseMesh = new THREE.Mesh(baseGeo, baseMat);
             newspaperGroup.add(baseMesh);
 
             // ==========================================
-            // 5. 飛び出す立体3D文字（Z: +6cm）
+            // 2. 飛び出す立体3D文字（Z: +6cm）
             // ==========================================
             const loader = new THREE.FontLoader();
             loader.load('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/fonts/helvetiker_bold.typeface.json', function (font) {
@@ -252,40 +257,23 @@
             });
 
             // ==========================================
-            // 6. 最前面 ホログラムフォトフレーム（Z: +12cm）
+            // 3. 動画テクスチャ 報道フォトフレーム（Z: +12cm）
             // ==========================================
-            const cardCanvas = document.createElement('canvas');
-            cardCanvas.width = 512;
-            cardCanvas.height = 512;
-            const cCtx = cardCanvas.getContext('2d');
+            videoCanvas = document.createElement('canvas');
+            videoCanvas.width = 512;
+            videoCanvas.height = 384;
+            videoCtx = videoCanvas.getContext('2d');
 
-            const grad = cCtx.createRadialGradient(256, 256, 20, 256, 256, 256);
-            grad.addColorStop(0, '#00e1ff');
-            grad.addColorStop(0.8, '#001133');
-            grad.addColorStop(1, '#00ff88');
-            cCtx.fillStyle = grad;
-            cCtx.fillRect(0, 0, 512, 512);
+            videoTexture = new THREE.CanvasTexture(videoCanvas);
+            videoTexture.generateMipmaps = true;
+            videoTexture.minFilter = THREE.LinearMipmapLinearFilter;
+            videoTexture.anisotropy = maxAnisotropy;
 
-            cCtx.strokeStyle = '#ffffff';
-            cCtx.lineWidth = 10;
-            cCtx.strokeRect(20, 20, 472, 472);
-
-            cCtx.fillStyle = '#ffffff';
-            cCtx.font = 'bold 36px sans-serif';
-            cCtx.textAlign = 'center';
-            cCtx.fillText('MAINICHI PHOTO', 256, 250);
-            cCtx.fillText('HOLOGRAM', 256, 300);
-
-            const cardTexture = new THREE.CanvasTexture(cardCanvas);
-            cardTexture.generateMipmaps = true;
-            cardTexture.minFilter = THREE.LinearMipmapLinearFilter;
-            cardTexture.anisotropy = maxAnisotropy;
-
-            const cardGeo = new THREE.BoxGeometry(0.24, 0.18, 0.02);
+            const cardGeo = new THREE.BoxGeometry(0.26, 0.195, 0.02);
             const cardMat = new THREE.MeshStandardMaterial({
-                map: cardTexture,
-                roughness: 0.1,
-                metalness: 0.5
+                map: videoTexture,
+                roughness: 0.2,
+                metalness: 0.4
             });
 
             photoCard = new THREE.Mesh(cardGeo, cardMat);
@@ -293,7 +281,33 @@
             newspaperGroup.add(photoCard);
 
             // ==========================================
-            // 7. WebXR 起動
+            // 4. 【新規】3D空間紙面広告（Z: +18cm 飛び出しオブジェクト）
+            // ==========================================
+            adMeshGroup = new THREE.Group();
+            adMeshGroup.position.set(0.18, -0.22, 0.18); // 紙面右下広告エリアの手前
+
+            // 広告用立体キューブ（プロダクトプロモーションモデル）
+            const cubeGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+            const cubeMat = new THREE.MeshStandardMaterial({
+                color: 0x00e1ff,
+                emissive: 0x003366,
+                metalness: 0.9,
+                roughness: 0.1,
+                wireframe: false
+            });
+            adCube = new THREE.Mesh(cubeGeo, cubeMat);
+            adMeshGroup.add(adCube);
+
+            // 広告用外囲いワイヤーフレーム枠
+            const wireGeo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
+            const wireMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, wireframe: true });
+            const wireMesh = new THREE.Mesh(wireGeo, wireMat);
+            adMeshGroup.add(wireMesh);
+
+            newspaperGroup.add(adMeshGroup);
+
+            // ==========================================
+            // 5. WebXR 起動
             // ==========================================
             const vrBtn = document.getElementById('enter-vr-btn');
             if ('xr' in navigator) {
@@ -321,15 +335,57 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
+        // 動的動画テクスチャ更新処理 (60fps)
+        function updateVideoTexture(time) {
+            if (!videoCtx) return;
+
+            // 背景波形アニメーション
+            videoCtx.fillStyle = '#000814';
+            videoCtx.fillRect(0, 0, 512, 384);
+
+            const t = time * 0.003;
+            videoCtx.lineWidth = 4;
+
+            for (let i = 0; i < 5; i++) {
+                videoCtx.beginPath();
+                videoCtx.strokeStyle = i % 2 === 0 ? '#00ff88' : '#00e1ff';
+                for (let x = 0; x < 512; x += 10) {
+                    const y = 192 + Math.sin(x * 0.02 + t + i) * (30 + i * 10);
+                    if (x === 0) videoCtx.moveTo(x, y);
+                    else videoCtx.lineTo(x, y);
+                }
+                videoCtx.stroke();
+            }
+
+            // ニュースライブテロップ表示
+            videoCtx.fillStyle = '#000000';
+            videoCtx.fillRect(0, 320, 512, 64);
+            videoCtx.fillStyle = '#00ff88';
+            videoCtx.font = 'bold 24px sans-serif';
+            videoCtx.fillText('［ LIVE PHOTO ］ 60fps Dynamic News Stream', 20, 358);
+
+            videoTexture.needsUpdate = true;
+        }
+
         function render(time) {
+            // 動画テクスチャ更新
+            updateVideoTexture(time);
+
             if (newspaperGroup) {
-                // 滑らかな首振りモーション（チラつきを抑える低速スイング）
                 newspaperGroup.rotation.y = Math.sin(time * 0.0006) * 0.10;
             }
             if (photoCard) {
                 photoCard.position.y = -0.1 + Math.sin(time * 0.002) * 0.012;
                 photoCard.rotation.y = Math.sin(time * 0.001) * 0.12;
             }
+
+            // 3D空間広告オブジェクトの回転アニメーション
+            if (adMeshGroup && adCube) {
+                adCube.rotation.x = time * 0.001;
+                adCube.rotation.y = time * 0.0015;
+                adMeshGroup.position.z = 0.18 + Math.sin(time * 0.002) * 0.02; // Z軸バウンド
+            }
+
             renderer.render(scene, camera);
         }
     </script>
