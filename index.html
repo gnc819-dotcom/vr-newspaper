@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Hologram Newspaper - True 3D Dynamic Page Curl</title>
+    <title>3D Mainichi Shimbun - Flexible Page Curl</title>
     <style>
         body {
             margin: 0;
@@ -29,12 +29,13 @@
             pointer-events: none;
             text-align: center;
             box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+            z-index: 100;
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-    <div id="info-ui">新聞の右端をつかんで左右にドラッグすると、しなやかに紙がめくれます</div>
+    <div id="info-ui">新聞の右端をクリック／タップしてドラッグすると、紙がしなやかにめくります</div>
 
     <script>
         let scene, camera, renderer;
@@ -57,8 +58,8 @@
             scene.background = new THREE.Color(0x000000); // 漆黒 RGB:0,0,0
 
             // 3D立体感を強力に表現する斜めカメラアングル
-            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 0.2, 2.3);
+            camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 0.15, 2.4);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -68,7 +69,7 @@
             raycaster = new THREE.Raycaster();
             mouse = new THREE.Vector2(-100, -100);
 
-            // ホログラム空間の多方向立体ライティング
+            // 多方向立体ライティング
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
             scene.add(ambientLight);
 
@@ -80,11 +81,11 @@
             bluePoint.position.set(-3, -2, 2);
             scene.add(bluePoint);
 
-            // 64x64の高密度メッシュで物理的曲げ計算を行う
+            // 高密度メッシュ（64x64分割）による完全な物理曲げ計算
             const width = 1.0;
-            const height = 1.3;
+            const height = 1.35;
             page1Geo = new THREE.PlaneGeometry(width, height, 64, 64);
-            page1Geo.translate(width / 2, 0, 0); // 左端をめくり軸（背表紙）に固定
+            page1Geo.translate(width / 2, 0, 0); // 左端をめくり軸に設定
 
             page2Geo = new THREE.PlaneGeometry(width, height, 64, 64);
             page2Geo.translate(width / 2, 0, 0);
@@ -94,60 +95,58 @@
             const tex1 = createMainichiPage1Texture();
             const tex2 = createMainichiPage2Texture();
 
-            const mat1 = new THREE.MeshStandardMaterial({ map: tex1, side: THREE.FrontSide, roughness: 0.2, metalness: 0.1 });
-            const mat2 = new THREE.MeshStandardMaterial({ map: tex2, side: THREE.BackSide, roughness: 0.2, metalness: 0.1 });
+            const mat1 = new THREE.MeshStandardMaterial({ map: tex1, side: THREE.FrontSide, roughness: 0.25, metalness: 0.05 });
+            const mat2 = new THREE.MeshStandardMaterial({ map: tex2, side: THREE.BackSide, roughness: 0.25, metalness: 0.05 });
 
             page1Mesh = new THREE.Mesh(page1Geo, mat1);
             page2Mesh = new THREE.Mesh(page2Geo, mat2);
 
-            // 3Dホログラムステージ（空間に傾けて浮かせる）
+            // 3Dステージ（空間にわずかに傾けて浮かせる）
             const hologramStage = new THREE.Group();
-            hologramStage.rotation.x = 0.18;
-            hologramStage.rotation.y = -0.15;
-            hologramStage.position.set(-0.45, 0, 0);
+            hologramStage.rotation.x = 0.15;
+            hologramStage.rotation.y = -0.12;
+            hologramStage.position.set(-0.48, 0, 0);
             scene.add(hologramStage);
 
             hologramStage.add(page1Mesh);
             hologramStage.add(page2Mesh);
 
-            // ==========================================
-            // 3D リアルダミー広告：生ビール缶 (立体オブジェクト)
-            // ==========================================
+            // 2面 下部 3D立体缶（サッポロ黒ラベル）
             beerCanGroup = new THREE.Group();
-            beerCanGroup.position.set(0.65, -0.32, -0.05);
+            beerCanGroup.position.set(0.68, -0.35, -0.05);
             page2Mesh.add(beerCanGroup);
 
-            const canGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.16, 32);
+            const canGeo = new THREE.CylinderGeometry(0.055, 0.055, 0.17, 32);
             const canMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.1 });
             beerCanMesh = new THREE.Mesh(canGeo, canMat);
             beerCanGroup.add(beerCanMesh);
 
-            const starGeo = new THREE.OctahedronGeometry(0.022);
+            const starGeo = new THREE.OctahedronGeometry(0.024);
             const starMat = new THREE.MeshBasicMaterial({ color: 0xffd700 });
             const starMesh = new THREE.Mesh(starGeo, starMat);
-            starMesh.position.set(0, 0.01, -0.051);
+            starMesh.position.set(0, 0.01, -0.056);
             starMesh.scale.set(1, 1, 0.2);
             beerCanGroup.add(starMesh);
 
-            const ringGeo = new THREE.RingGeometry(0.06, 0.08, 32);
+            const ringGeo = new THREE.RingGeometry(0.065, 0.085, 32);
             const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e1ff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
             pulseRing = new THREE.Mesh(ringGeo, ringMat);
             pulseRing.rotation.x = Math.PI / 2;
-            pulseRing.position.y = -0.08;
+            pulseRing.position.y = -0.085;
             beerCanGroup.add(pulseRing);
 
-            // ドラッグ＆ポインター操作イベント
+            // 操作イベント
             window.addEventListener('mousedown', onMouseDown);
             window.addEventListener('mousemove', onMouseMove);
             window.addEventListener('mouseup', onMouseUp);
+            window.addEventListener('touchstart', onTouchStart);
+            window.addEventListener('touchmove', onTouchMove);
+            window.addEventListener('touchend', onMouseUp);
             window.addEventListener('resize', onWindowResize);
 
             renderer.setAnimationLoop(render);
         }
 
-        // ==========================================
-        // 毎日新聞 1面 テクスチャ
-        // ==========================================
         function createMainichiPage1Texture() {
             const canvas = document.createElement('canvas');
             canvas.width = 2048; canvas.height = 2048;
@@ -179,9 +178,6 @@
             return tex;
         }
 
-        // ==========================================
-        // 毎日新聞 2面（中面）テクスチャ
-        // ==========================================
         function createMainichiPage2Texture() {
             const canvas = document.createElement('canvas');
             canvas.width = 2048; canvas.height = 2048;
@@ -205,7 +201,6 @@
                 ctx.beginPath(); ctx.moveTo(x, 280); ctx.lineTo(x, 1320); ctx.stroke();
             }
 
-            // 2面 広告枠
             ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 6;
             ctx.strokeRect(100, 1350, 1850, 640);
             ctx.fillStyle = '#05100a'; ctx.fillRect(100, 1350, 1850, 640);
@@ -213,24 +208,20 @@
             ctx.fillStyle = '#ffd700'; ctx.font = 'bold 55px serif';
             ctx.fillText('★ SAPPORO 生ビール 黒ラベル', 150, 1440);
             ctx.fillStyle = '#ffffff'; ctx.font = '30px sans-serif';
-            ctx.fillText('丸くなるな、星になれ。［ 指を近づけて立体3Dポップアップ ］', 150, 1520);
+            ctx.fillText('丸くなるな、星になれ。［ 3D立体ポップアップ広告 ］', 150, 1520);
 
             const tex = new THREE.CanvasTexture(canvas);
             tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
             return tex;
         }
 
-        // ==========================================
-        // 真のしなやかな紙めくり（動的Curl曲げ計算）
-        // ==========================================
+        // 高精度な紙の曲げ（Curl/Bend）頂点変形計算
         function applyPageCurl(geo, progress) {
             const pos = geo.attributes.position;
             const count = pos.count;
 
-            // めくり角度 theta: 0 -> PI
             const theta = progress * Math.PI;
-            // 円弧の半径 (進行に応じて変化)
-            const radius = 0.35 + 0.15 * Math.sin(theta);
+            const radius = 0.32 + 0.18 * Math.sin(theta); // 進行度に応じたしなり円弧半径
 
             for (let i = 0; i < count; i++) {
                 const x = origPositions.getX(i);
@@ -241,21 +232,17 @@
                     continue;
                 }
 
-                // カールが始まる地点
                 const curlPoint = (1 - progress) * 1.0;
 
                 if (x < curlPoint) {
-                    // まだめくられていない平面部分
                     pos.setXYZ(i, x, y, 0);
                 } else {
-                    // めくられて円弧状にしなる部分
                     const dist = x - curlPoint;
                     const angle = dist / radius;
 
                     const newX = curlPoint + radius * Math.sin(angle);
                     const newZ = radius * (1 - Math.cos(angle));
 
-                    // 裏返しの回転補正
                     const rotX = curlPoint - (newX - curlPoint) * Math.cos(theta) - newZ * Math.sin(theta);
                     const rotZ = (newX - curlPoint) * Math.sin(theta) + newZ * Math.cos(theta);
 
@@ -267,22 +254,33 @@
             geo.computeVertexNormals();
         }
 
-        function onMouseDown(event) {
-            isDragging = true;
-        }
-
-        function onMouseUp(event) {
+        function onMouseDown(e) { isDragging = true; }
+        function onMouseUp(e) {
             isDragging = false;
-            // ドラッグを離した際、半分以上めくっていれば最後までめくる
             targetProgress = dragProgress > 0.5 ? 1 : 0;
         }
 
-        function onMouseMove(event) {
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        function onMouseMove(e) {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
             if (isDragging) {
-                // マウスのX移動量に合わせて直感的に紙を引っ張る
+                targetProgress = Math.max(0, Math.min(1, (0.5 - mouse.x)));
+            }
+        }
+
+        function onTouchStart(e) {
+            if (e.touches.length > 0) {
+                isDragging = true;
+                mouse.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+            }
+        }
+
+        function onTouchMove(e) {
+            if (isDragging && e.touches.length > 0) {
+                mouse.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
                 targetProgress = Math.max(0, Math.min(1, (0.5 - mouse.x)));
             }
         }
@@ -294,14 +292,11 @@
         }
 
         function render() {
-            // 滑らかな物理慣性追従
             dragProgress += (targetProgress - dragProgress) * 0.1;
 
-            // 1面と2面にカール曲げ計算を適用
             applyPageCurl(page1Geo, dragProgress);
             applyPageCurl(page2Geo, dragProgress);
 
-            // 2面（毎日2面）表示時のビール缶アテンション判定
             if (dragProgress > 0.6) {
                 raycaster.setFromCamera(mouse, camera);
                 const intersects = raycaster.intersectObject(beerCanMesh);
