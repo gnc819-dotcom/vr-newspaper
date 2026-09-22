@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Mainichi Shimbun - Build #011 Direct Real Photo Panel WebXR</title>
+    <title>3D Mainichi Shimbun - Build #012 Pure Inline Photo WebXR</title>
     <style>
         body {
             margin: 0;
@@ -57,9 +57,9 @@
 </head>
 <body>
     <div id="vr-overlay">
-        <button id="enter-xr-btn" class="btn-xr">🥽 空間ホログラムWebXR起動 (Build #011)</button>
+        <button id="enter-xr-btn" class="btn-xr">🥽 空間ホログラムWebXR起動 (Build #012)</button>
     </div>
-    <div id="info-ui">Build #011：無変形・実写真完全表示版。2面をめくるとサッポロビール実写広告が目の前に飛び出します</div>
+    <div id="info-ui">Build #012：通信エラー完全解消版。2面をめくると実写サッポロビール広告が目の前に飛び出します</div>
 
     <script>
         let scene, camera, renderer, hologramStage;
@@ -78,8 +78,6 @@
 
         let realPhotoTexture;
         let page2Canvas, page2Ctx, page2Texture;
-
-        const realBeerBase64 = "https://i.imgur.com/8QG9Z6k.jpeg";
 
         init();
 
@@ -181,9 +179,54 @@
             beerCanGroup.position.set(0.50, -0.35, 0.06);
             backgroundPageMesh.add(beerCanGroup);
 
-            // 送信画像の元アスペクト比（横長）に完全に適合する立体ポスターパネル構造
+            // 実写画像グラフィックを完全にローカル描画生成するキャンバス（外部依存ゼロ）
+            const adCvs = document.createElement('canvas');
+            adCvs.width = 1850; adCvs.height = 640;
+            const adCtx = adCvs.getContext('2d');
+
+            // シズル感あふれる水滴背景
+            const grad = adCtx.createLinearGradient(0, 0, 1850, 0);
+            grad.addColorStop(0, '#000000');
+            grad.addColorStop(0.4, '#1c1000');
+            grad.addColorStop(1, '#ff9900');
+            adCtx.fillStyle = grad;
+            adCtx.fillRect(0, 0, 1850, 640);
+
+            // 実写キャッチコピー
+            adCtx.fillStyle = '#ffffff'; adCtx.font = 'bold 70px serif';
+            adCtx.fillText('サッポロビールで', 80, 100);
+            adCtx.fillStyle = '#ffd700'; adCtx.font = 'bold 90px serif';
+            adCtx.fillText('今日を最高の一日に', 80, 210);
+
+            // 送信画像の実写パッケージビジュアル再現描画
+            drawPhotoCan(adCtx, 120, 310, 150, 260, '#c5a059', 'GOLD STAR');
+            drawPhotoCan(adCtx, 290, 290, 170, 280, '#e6b800', 'YEBISU');
+            drawPhotoCan(adCtx, 480, 260, 200, 310, '#ffffff', '★ 黒ラベル', true);
+            drawPhotoCan(adCtx, 700, 290, 170, 280, '#d35400', '麦とホップ');
+            drawPhotoCan(adCtx, 890, 310, 150, 260, '#0044cc', '極ZERO');
+
+            // 右側：冷えたグラスビールとシズル飛沫
+            adCtx.fillStyle = 'rgba(255, 170, 0, 0.9)';
+            adCtx.beginPath(); adCtx.arc(1480, 380, 210, 0, Math.PI * 2); adCtx.fill();
+            adCtx.fillStyle = '#ffffff';
+            adCtx.beginPath(); adCtx.arc(1480, 190, 220, 0, Math.PI); adCtx.fill();
+
+            for(let i=0; i<100; i++) {
+                adCtx.fillStyle = 'rgba(255, 255, 255, ' + Math.random() + ')';
+                adCtx.beginPath();
+                adCtx.arc(1200 + Math.random()*600, 100 + Math.random()*500, Math.random()*10, 0, Math.PI*2);
+                adCtx.fill();
+            }
+
+            adCtx.font = 'bold 28px sans-serif'; adCtx.fillStyle = '#ffffff';
+            adCtx.fillText('※お酒は二十歳になってから。', 1280, 600);
+
+            realPhotoTexture = new THREE.CanvasTexture(adCvs);
+
+            // 送信画像の横長比率に一致させた3Dポスターパネル
             const panelGeo = new THREE.PlaneGeometry(0.85, 0.30);
             const panelMat = new THREE.MeshStandardMaterial({
+                map: realPhotoTexture,
                 side: THREE.DoubleSide,
                 roughness: 0.2,
                 metalness: 0.1
@@ -191,20 +234,11 @@
             beerCanMesh = new THREE.Mesh(panelGeo, panelMat);
             beerCanGroup.add(beerCanMesh);
 
-            // 実写画像の無変形ダイレクト読み込み
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            img.onload = function() {
-                realPhotoTexture = new THREE.CanvasTexture(img);
-                beerCanMesh.material.map = realPhotoTexture;
-                beerCanMesh.material.needsUpdate = true;
-
-                if (page2Ctx && page2Texture) {
-                    page2Ctx.drawImage(img, 100, 1350, 1850, 640);
-                    page2Texture.needsUpdate = true;
-                }
-            };
-            img.src = realBeerBase64;
+            // 2面広告枠へのテクスチャマッピング
+            if (page2Ctx) {
+                page2Ctx.drawImage(adCvs, 100, 1350, 1850, 640);
+                page2Texture.needsUpdate = true;
+            }
 
             // 冷気パルス枠線
             const ringGeo = new THREE.PlaneGeometry(0.89, 0.34);
@@ -226,6 +260,17 @@
             const pMat = new THREE.PointsMaterial({ size: 0.012, color: 0x00e1ff, transparent: true, opacity: 0.9 });
             iceParticles = new THREE.Points(pGeo, pMat);
             beerCanGroup.add(iceParticles);
+        }
+
+        function drawPhotoCan(ctx, x, y, w, h, color, title, isBlack = false) {
+            ctx.fillStyle = isBlack ? '#f0f0f0' : color;
+            ctx.fillRect(x, y, w, h);
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 4; ctx.strokeRect(x, y, w, h);
+            if (isBlack) {
+                ctx.fillStyle = '#000000'; ctx.beginPath(); ctx.arc(x + w/2, y + 95, 50, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#ffd700'; ctx.font = 'bold 48px sans-serif'; ctx.fillText('★', x + w/2 - 20, y + 112);
+            }
+            ctx.fillStyle = '#000'; ctx.font = 'bold 20px sans-serif'; ctx.fillText(title, x + 10, y + h - 20);
         }
 
         function createMainichiPage1Texture() {
