@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Hologram Newspaper - Full Text Edition</title>
+    <title>毎日新聞 3Dホログラム空間版 - Mainichi Shimbun WebXR Edition</title>
     <style>
         body {
             margin: 0;
@@ -12,7 +12,7 @@
             height: 100vh;
             overflow: hidden;
             background-color: #000000;
-            font-family: sans-serif;
+            font-family: "Hiragino Mincho ProN", "Yu Mincho", "MS Mincho", serif;
         }
         #vr-overlay {
             position: absolute;
@@ -23,15 +23,16 @@
             z-index: 1000;
         }
         .btn-vr {
-            padding: 20px 40px;
-            font-size: 22px;
+            padding: 22px 48px;
+            font-size: 24px;
             font-weight: bold;
             color: #00ff88;
             background: #000000;
             border: 3px solid #00ff88;
             border-radius: 12px;
             cursor: pointer;
-            box-shadow: 0 0 25px rgba(0, 255, 136, 0.8);
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.8);
+            transition: all 0.2s ease;
         }
         .btn-vr:hover {
             background: #00ff88;
@@ -44,7 +45,7 @@
 </head>
 <body>
     <div id="vr-overlay">
-        <button id="enter-vr-btn" class="btn-vr">VRモード起動（数千文字高密度充填版）</button>
+        <button id="enter-vr-btn" class="btn-vr">VRモード起動（毎日新聞 1面完全完全再現）</button>
     </div>
 
     <script>
@@ -54,7 +55,7 @@
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x000000); // 漆黒 RGB:0,0,0
+            scene.background = new THREE.Color(0x000000); // 漆黒 (Q42ホログラムファン完全透過用)
 
             camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
             camera.position.set(0, 1.6, 1.0);
@@ -65,7 +66,7 @@
             renderer.xr.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.3);
             scene.add(ambientLight);
 
             const pointLight = new THREE.PointLight(0x00ff88, 2, 10);
@@ -76,59 +77,77 @@
             newspaperGroup.position.set(0, 1.5, -1.0);
             scene.add(newspaperGroup);
 
-            // ==========================================
-            // 1. 高精細 2048x2048 Canvas（数千文字フル充填）
-            // ==========================================
             const paperCanvas = document.createElement('canvas');
             paperCanvas.width = 2048;
             paperCanvas.height = 2048;
             const ctx = paperCanvas.getContext('2d');
 
-            // 漆黒背景
+            // 漆黒背景 (RGB: 0,0,0)
             ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, 2048, 2048);
 
-            // 外枠
+            // 新聞外枠線（二重線）
             ctx.strokeStyle = '#00ff88';
-            ctx.lineWidth = 10;
+            ctx.lineWidth = 8;
             ctx.strokeRect(30, 30, 1988, 1988);
             ctx.lineWidth = 2;
-            ctx.strokeRect(44, 44, 1960, 1960);
+            ctx.strokeRect(42, 42, 1964, 1964);
 
-            // --- ヘッダー領域 ---
+            // --- 1. 毎日新聞 題字ブロック (右上) ---
             ctx.fillStyle = '#00ff88';
-            ctx.fillRect(1400, 60, 580, 200);
+            ctx.fillRect(1420, 60, 560, 320);
             ctx.fillStyle = '#000000';
-            ctx.font = 'bold 88px "Hiragino Mincho ProN", "MS Mincho", serif';
-            ctx.fillText('空間日報', 1510, 190);
+            
+            // 題字「毎日新聞」
+            ctx.font = 'bold 105px "Hiragino Mincho ProN", "Yu Mincho", "MS Mincho", serif';
+            ctx.fillText('毎 日 新 聞', 1445, 200);
 
-            ctx.fillStyle = '#00e1ff';
-            ctx.font = '28px sans-serif';
-            ctx.fillText('2026年 (令和8年) 9月22日 火曜日 【創刊特別号】', 60, 100);
-            ctx.fillText('発行所：空間新聞社 3D HOLOGRAPHIC MEDIA LAB', 60, 140);
-            ctx.fillText('規格：Q42 3D-Hologram Fan / 2048x2048 / High-Density Text', 60, 180);
+            // 題字内詳細情報（発行所・号数・日付）
+            ctx.font = 'bold 22px sans-serif';
+            ctx.fillText('2026年 (令和8年) 9月22日 火曜日 (朝刊)', 1450, 250);
+            ctx.fillText('第42890号 / 毎日新聞社 東京本社', 1450, 280);
+            ctx.fillText('空間ホログラム規格 Q42 1面特別号', 1450, 310);
 
+            // 天気予報枠（題字の左側）
             ctx.strokeStyle = '#00e1ff';
-            ctx.lineWidth = 4;
-            ctx.beginPath(); ctx.moveTo(60, 280); ctx.lineTo(1988, 280); ctx.stroke();
+            ctx.lineWidth = 2;
+            ctx.strokeRect(1020, 60, 380, 140);
+            ctx.fillStyle = '#00e1ff';
+            ctx.font = 'bold 24px sans-serif';
+            ctx.fillText('【全国の天気】東京 晴 26℃ / 大阪 晴 28℃', 1030, 100);
+            ctx.fillText('札幌 曇 20℃ / 福岡 晴 27℃ / 空間 良好', 1030, 140);
 
-            // --- メイン大見出し ---
+            // 題字下横太線（1面トップ境界）
+            ctx.strokeStyle = '#00e1ff';
+            ctx.lineWidth = 6;
+            ctx.beginPath(); ctx.moveTo(60, 400); ctx.lineTo(1988, 400); ctx.stroke();
+
+            // --- 2. トップ記事（1面最大見出し） ---
             ctx.fillStyle = '#00ff88';
-            ctx.font = 'bold 68px "Hiragino Sans", "Meiryo", sans-serif';
-            ctx.fillText('3Dホログラム新聞、本格実用化へ始動', 60, 360);
+            ctx.font = 'bold 80px "Hiragino Sans", "Meiryo", sans-serif';
+            ctx.fillText('空間報道、新時代へ', 60, 500);
 
+            // 反転帯見出し（袖見出し）
+            ctx.fillStyle = '#00ff88';
+            ctx.fillRect(60, 530, 880, 60);
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 36px "Hiragino Sans", sans-serif';
+            ctx.fillText(' WebXRと立体透過表示が融合 毎日新聞が実写検証 ', 70, 575);
+
+            // リード文（見出し下）
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 36px sans-serif';
-            ctx.fillText('〜 WebXRと立体透過表示技術が融合、紙面から飛び出す数千文字の空間情報体験 〜', 60, 420);
+            ctx.font = '28px "Hiragino Mincho ProN", serif';
+            ctx.fillText('平面の「紙」から空間へ表現の枠組みを拡張。実光透過ディスプレイでの高度な可読性を達成。', 60, 630);
 
+            // 区切り横線
             ctx.strokeStyle = '#00ff88';
             ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(60, 460); ctx.lineTo(1988, 460); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(60, 660); ctx.lineTo(1988, 660); ctx.stroke();
 
-            // --- 長文テキスト流し込み関数 ---
+            // --- 3. 縦書き＆多段組長文テキスト流し込み関数 ---
             function fillColumnText(text, x, y, width, lineHeight, fontSize, color) {
                 ctx.fillStyle = color;
-                ctx.font = `${fontSize}px sans-serif`;
+                ctx.font = `${fontSize}px "Hiragino Mincho ProN", "Yu Mincho", serif`;
                 let chars = text.split('');
                 let currentLine = '';
                 let currentY = y;
@@ -148,60 +167,89 @@
                 return currentY + lineHeight;
             }
 
-            // 本格的な長文ニュース記事（数千文字規模）
-            const textArticle1 = "【空間メディア取材班】紙面の制約を飛び出し、立体空間上に展開する新しい情報体「3Dホログラム新聞」の実機検証が本格的に始まった。従来の平面ディスプレイや紙媒体と異なり、視覚的な奥行き（パララックス効果）を活用することで、重要見出しや報道写真が空間へ手前に飛び出す表現が可能となった。特にQ42規格に対応した透過度制御と、WebXRによる没入レンダリング技術の組み合わせにより、情報へのアクセス体験が根本から進化している。取材班の初期データによると、立体空間における情報提示は従来の平面画面と比較して認知負荷を軽減しつつ、記憶定着率を大幅に引き上げる効果が実証された。今後は各地のサイネージや店頭、家庭内端末に向けてリアルタイムでの速報配信システムを構築していく方針である。";
+            // 毎日新聞1面用・記事長文データ
+            const mainichiArticle1 = "【空間報道取材班】紙面という二百年以上の歴史を持つ物理フレームを飛び出し、空間そのものを情報記述のキャンバスとする「3Dホログラム新聞」の実証実験が本格化した。本紙が独自に開発したQ42規格適応レイアウトエンジンは、黒背景（RGB:0,0,0）での完全透過を利用し、光の粒子のみで文字と写真を空間に結像させる。文字の密度は実際のブランケット判1面と同等の数千字規模を維持しつつ、視差パララックス（Z軸）を利用することで、重要ニュースや高解像度報道写真を手前に立体的に飛び出させることに成功した。";
 
-            const textArticle2 = "本プロジェクトにおける最大のイノベーションは、背景領域に完全な漆黒（RGB:0,0,0）を配することで、ホログラムファン等の光学機器を通して文字のみを空間に浮遊させる点にある。これにより、透過型のスマートグラスやXRヘッドセットを装着した際にも、実世界の背景と干渉することなく極めて高いコントラストでニュース文章を読破することができる。また、2048ピクセル超の高解像度テクスチャマッピングを採用することで、実際の新聞紙面と同等以上の高密度な段組み構成を実現。ユーザーは近接観察によって細小文字まで鮮明に可読することが可能となった。";
+            const mainichiArticle2 = "実証データによると、立体空間におけるニュース提示は従来のスマートフォン画面や液晶テレビと比較し、読者の記憶定着率を約四割以上向上させる結果が出た。特にQuest 3などの次世代WebXRデバイスおよび透過型ホログラムファンとの組み合わせにより、読者は空間に浮かぶ紙面に至近距離まで顔を近づけ、繊細な文字線や罫線まで潰れることなく鮮明に判読することができる。";
 
-            const textArticle3 = "【法規制とAIガバナンス】労働基準法および入管法をはじめとする最新の各種法規制への適応も、次世代メディアにおける重要な柱となっている。自動化されたコンプライアンス管理ツールは、契約書面や各種労働手続きの整合性をリアルタイムで解析評価する。新聞メディアが長年培ってきた高い社会的信頼性と、最先端の人工知能アルゴリズムが融合することで、正確かつ迅速な情報提供プラットフォームの確立を目指す。";
+            const yorokuText = "【余録】幾千の文字が紙から解き放たれ、光の粒子となって空間を舞う。かつて活字を拾い、インクを塗り、紙に焼き付けた新聞の歴史は今、デジタル空間の光の深度へと引き継がれる。目の前に浮かび上がる文字の群れに手を伸ばせば、そこには新時代の情報体験が広がっている。言葉の重みは紙の質量ではなく、その思想の深さにこそ宿る。空間に舞うニュースの明かりが、私たちの視界を静かに照らし出している。";
 
-            const textArticle4 = "【社説】立体空間におけるメディアの未来と課題。紙媒体が長年培ってきた「レイアウトによる情報の重み付け」は、デジタル空間においても極めて重要な要素である。単に画面を3D化するだけでなく、Z軸（奥行き方向）を利用したプライオリティ表現がこれからの空間デザインの標準となる。我々はこの技術を単なる一時の演出にとどめず、社会インフラとしての情報共有手段へと高めていかなければならない。情報過多の時代において、真に必要なニュースを直感的に捉え、正確に理解するための空間UI設計が今まさに求められている。";
-
-            // --- 6カラム多段組による超高密度レイアウト ---
-            const colWidth = 285;
-            const startY = 500;
+            // --- 4. 15段組段組みレイアウト配置 ---
+            const colWidth = 280;
             const colGap = 320;
 
-            // 各カラムへの大量テキスト配置
-            fillColumnText("【トップニュース詳細】\n" + textArticle1, 60, startY, colWidth, 24, 15, '#cccccc');
-            fillColumnText("【技術解剖と光学設計】\n" + textArticle2, 60 + colGap * 1, startY, colWidth, 24, 15, '#cccccc');
-            
-            // 中央写真枠（Z:+12cmに浮かぶカードの背面領域）
+            // 右側カラム：トップ詳細記事（3段構成）
+            ctx.fillStyle = '#00e1ff';
+            ctx.font = 'bold 30px "Hiragino Sans", sans-serif';
+            ctx.fillText('【1面解説】空間メディアにおける視認性革新', 60, 710);
+            fillColumnText(mainichiArticle1, 60, 750, colWidth, 26, 16, '#dddddd');
+
+            ctx.fillStyle = '#00e1ff';
+            ctx.font = 'bold 30px "Hiragino Sans", sans-serif';
+            ctx.fillText('【技術検証】Q42規格とWebXRの完全な同期', 60 + colGap * 1, 710);
+            fillColumnText(mainichiArticle2, 60 + colGap * 1, 750, colWidth, 26, 16, '#dddddd');
+
+            // 中央部：報道写真予約エリア（Z:+12cmの立体カードが重なる背景枠）
             ctx.strokeStyle = '#00ff88';
             ctx.lineWidth = 2;
-            ctx.strokeRect(60 + colGap * 2, startY, 600, 450);
+            ctx.strokeRect(60 + colGap * 2, 700, 610, 480);
             ctx.fillStyle = '#00ff88';
-            ctx.font = '18px sans-serif';
-            ctx.fillText('［ HOLOGRAM PHOTO DISPLAY ZONE ］', 60 + colGap * 2 + 20, startY + 30);
+            ctx.font = '20px sans-serif';
+            ctx.fillText('［ 毎日新聞 報道写真ホログラムフレームエリア ］', 60 + colGap * 2 + 20, 735);
+
+            // 写真横の解説文章
+            fillColumnText("【写真説明】空間最前面に自転浮遊する3D報道フォトカード。漆黒背景とコントラストをなすリアルタイム発光によって、1面の中で最も強い視覚的存在感を放つ。", 60 + colGap * 2, 1210, 610, 24, 15, '#aaaaaa');
+
+            // 右下カラム：総合・国際面
+            ctx.fillStyle = '#00e1ff';
+            ctx.font = 'bold 30px "Hiragino Sans", sans-serif';
+            ctx.fillText('【国際空間動向】WebXR標準化への動き', 60 + colGap * 4, 710);
+            fillColumnText("欧米の主要メディア企業が共同で空間新聞フォーマットの互換規格策定に着手。AIによるリアルタイム翻訳と組み合わせたグローバル速報配信体制が整いつつある。", 60 + colGap * 4, 750, colWidth, 26, 16, '#dddddd');
+
+            ctx.fillStyle = '#00e1ff';
+            ctx.font = 'bold 30px "Hiragino Sans", sans-serif';
+            ctx.fillText('【経済】次世代サイネージ市場が急拡大', 60 + colGap * 5, 710);
+            fillColumnText("ホログラムファンおよびMRグラス向けの空間広告・ニュース市場が前年比三〇〇％の成長を記録。店頭や公共施設での立体紙面採用が相次ぐ。", 60 + colGap * 5, 750, colWidth, 26, 16, '#dddddd');
+
+            // --- 5. 毎日新聞名物「余録（よろく）」コラム枠（左下） ---
+            ctx.strokeStyle = '#00ff88';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(60, 1380, 600, 580);
+            ctx.fillStyle = '#00ff88';
+            ctx.fillRect(60, 1380, 600, 60);
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 38px "Hiragino Mincho ProN", serif';
+            ctx.fillText(' 余 録 ', 80, 1425);
+
+            fillColumnText(yorokuText, 80, 1470, 560, 28, 17, '#ffffff');
+
+            // 下部：社会面・社説・総合速報（右側全領域）
+            ctx.strokeStyle = '#00e1ff';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(700, 1380); ctx.lineTo(1988, 1380); ctx.stroke();
+
+            ctx.fillStyle = '#00ff88';
+            ctx.font = 'bold 32px "Hiragino Sans", sans-serif';
+            ctx.fillText('【空間社会面】法規制適応とAIニュースアルゴリズムの進化', 700, 1425);
+
+            const bottomArticle = "【社会】人工知能による自動組版と労働法規コンプライアンス管理ツールが連動し、新聞制作のリアルタイム化が実現。最新のニュースを即座に1面レイアウトとして生成し、ホログラム空間へ反映させる技術が確立された。編集権の独立性と正確性を担保しながら、超速報性を両立する新しい報道基盤として期待を集めている。";
             
-            fillColumnText("【写真解説】最前面に浮遊する3Dカードは、光の脈動とともにリアルタイムでアニメーションを行う。紙面から立体的に飛び出すことで視覚的インパクトを最大化する。", 60 + colGap * 2, startY + 500, 600, 24, 15, '#aaaaaa');
+            fillColumnText(bottomArticle, 700, 1465, 600, 26, 16, '#cccccc');
+            fillColumnText(mainichiArticle1.substring(0, 200), 1340, 1465, 610, 26, 16, '#cccccc');
 
-            fillColumnText("【社会・法規制動向】\n" + textArticle3, 60 + colGap * 4, startY, colWidth, 24, 15, '#cccccc');
-            fillColumnText("【社説・空間メディア論】\n" + textArticle4, 60 + colGap * 5, startY, colWidth, 24, 15, '#cccccc');
-
-            // 仕切り線
+            // 新聞用縦罫線（各カラム間）
             ctx.strokeStyle = '#222222';
             ctx.lineWidth = 1;
-            for(let i = 1; i <= 5; i++) {
-                if(i !== 3) {
-                    ctx.beginPath(); ctx.moveTo(35 + colGap * i, startY); ctx.lineTo(35 + colGap * i, 1950); ctx.stroke();
+            for (let i = 1; i <= 5; i++) {
+                if (i !== 3) {
+                    ctx.beginPath(); ctx.moveTo(35 + colGap * i, 680); ctx.lineTo(35 + colGap * i, 1350); ctx.stroke();
                 }
             }
 
-            // 下部追加ニュースライン（隙間なく充填）
-            ctx.strokeStyle = '#00e1ff';
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(60, 1300); ctx.lineTo(1988, 1300); ctx.stroke();
-
+            // 最下部 フッター線
             ctx.fillStyle = '#00ff88';
-            ctx.font = 'bold 28px sans-serif';
-            ctx.fillText('【空間総合・経済速報】全領域高密度テキストエリア', 60, 1340);
+            ctx.fillRect(60, 1980, 1928, 12);
 
-            for(let c = 0; c < 6; c++) {
-                fillColumnText(`【連載第${c+1}回】次世代ディスプレイ規格Q42における文字可読性と輝度分布の相関関係に関する研究報告。` + textArticle1.substring(0, 150), 60 + colGap * c, 1380, colWidth, 22, 14, '#aaaaaa');
-            }
-
-            // Canvasテクスチャ作成
             const paperTexture = new THREE.CanvasTexture(paperCanvas);
             paperTexture.minFilter = THREE.LinearFilter;
             paperTexture.magFilter = THREE.LinearFilter;
@@ -211,15 +259,13 @@
             const baseMesh = new THREE.Mesh(baseGeo, baseMat);
             newspaperGroup.add(baseMesh);
 
-            // ==========================================
-            // 2. 飛び出す立体3D文字（Z: +6cm）
-            // ==========================================
+            // --- 5. 空間に飛び出す「毎日新聞 空間版」立体3Dテキスト (Z: +6cm) ---
             const loader = new THREE.FontLoader();
             loader.load('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/fonts/helvetiker_bold.typeface.json', function (font) {
-                const textGeo = new THREE.TextGeometry('3D NEWSPAPER', {
+                const textGeo = new THREE.TextGeometry('MAINICHI 3D', {
                     font: font,
-                    size: 0.048,
-                    height: 0.018,
+                    size: 0.045,
+                    height: 0.016,
                     curveSegments: 12,
                     bevelEnabled: true,
                     bevelThickness: 0.002,
@@ -239,9 +285,7 @@
                 newspaperGroup.add(textMesh);
             });
 
-            // ==========================================
-            // 3. 最前面 ホログラムフォトフレーム（Z: +12cm）
-            // ==========================================
+            // --- 6. 最前面に独立浮遊する報道フォトフレーム (Z: +12cm) ---
             const cardCanvas = document.createElement('canvas');
             cardCanvas.width = 512;
             cardCanvas.height = 512;
@@ -259,10 +303,10 @@
             cCtx.strokeRect(20, 20, 472, 472);
 
             cCtx.fillStyle = '#ffffff';
-            cCtx.font = 'bold 36px sans-serif';
+            cCtx.font = 'bold 36px "Hiragino Sans", sans-serif';
             cCtx.textAlign = 'center';
-            cCtx.fillText('2048px HIGH-RES', 256, 250);
-            cCtx.fillText('HOLOGRAM PHOTO', 256, 300);
+            cCtx.fillText('毎日新聞 報道写真', 256, 230);
+            cCtx.fillText('2026 空間フォト', 256, 280);
 
             const cardTexture = new THREE.CanvasTexture(cardCanvas);
             const cardGeo = new THREE.BoxGeometry(0.24, 0.18, 0.02);
@@ -273,12 +317,10 @@
             });
 
             photoCard = new THREE.Mesh(cardGeo, cardMat);
-            photoCard.position.set(-0.02, 0.08, 0.12);
+            photoCard.position.set(-0.02, 0.08, 0.12); // 最前面 12cm 浮遊
             newspaperGroup.add(photoCard);
 
-            // ==========================================
-            // 4. WebXR 起動
-            // ==========================================
+            // --- 7. WebXR Immersive VR 起動 ---
             const vrBtn = document.getElementById('enter-vr-btn');
             if ('xr' in navigator) {
                 navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
@@ -307,10 +349,10 @@
 
         function render(time) {
             if (newspaperGroup) {
-                newspaperGroup.rotation.y = Math.sin(time * 0.0008) * 0.12;
+                newspaperGroup.rotation.y = Math.sin(time * 0.0008) * 0.12; // 低速左右 首振りアニメーション
             }
             if (photoCard) {
-                photoCard.position.y = 0.08 + Math.sin(time * 0.002) * 0.015;
+                photoCard.position.y = 0.08 + Math.sin(time * 0.002) * 0.015; // 浮遊・脈動
                 photoCard.rotation.y = Math.sin(time * 0.001) * 0.15;
             }
             renderer.render(scene, camera);
