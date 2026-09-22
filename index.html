@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Hologram Newspaper - Upgrade</title>
+    <title>3D Hologram Newspaper - 2048 High-Res Japanese Edition</title>
     <style>
         body {
             margin: 0;
@@ -38,14 +38,13 @@
             color: #000000;
         }
     </style>
-    <!-- Three.js & FontLoader / TextGeometry -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/TextGeometry.js"></script>
 </head>
 <body>
     <div id="vr-overlay">
-        <button id="enter-vr-btn" class="btn-vr">VRモード起動（立体テキスト版）</button>
+        <button id="enter-vr-btn" class="btn-vr">VRモード起動（2048px日本語紙面）</button>
     </div>
 
     <script>
@@ -55,7 +54,7 @@
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x000000);
+            scene.background = new THREE.Color(0x000000); // 漆黒 RGB:0,0,0
 
             camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
             camera.position.set(0, 1.6, 1.0);
@@ -77,56 +76,94 @@
             newspaperGroup.position.set(0, 1.5, -1.0);
             scene.add(newspaperGroup);
 
-            // --- 1. 高精細キャンバス（紙面ベース） ---
+            // ==========================================
+            // 1. 高精細 2048x2048 Canvas（日本語本格紙面）
+            // ==========================================
             const paperCanvas = document.createElement('canvas');
-            paperCanvas.width = 1024;
-            paperCanvas.height = 1024;
+            paperCanvas.width = 2048;
+            paperCanvas.height = 2048;
             const ctx = paperCanvas.getContext('2d');
 
-            // 漆黒背景
+            // 背景：漆黒
             ctx.fillStyle = '#000000';
-            ctx.fillRect(0, 0, 1024, 1024);
+            ctx.fillRect(0, 0, 2048, 2048);
 
-            // ネオン枠線
+            // 外枠（二重ネオン枠）
             ctx.strokeStyle = '#00ff88';
-            ctx.lineWidth = 8;
-            ctx.strokeRect(16, 16, 992, 992);
+            ctx.lineWidth = 12;
+            ctx.strokeRect(32, 32, 1984, 1984);
+            ctx.lineWidth = 4;
+            ctx.strokeRect(48, 48, 1952, 1952);
 
-            // 題字エリア
+            // --- ヘッダー領域（題字・日付） ---
+            // 題字ブロック（右上）
             ctx.fillStyle = '#00ff88';
-            ctx.fillRect(650, 40, 330, 120);
+            ctx.fillRect(1450, 80, 500, 240);
             ctx.fillStyle = '#000000';
-            ctx.font = 'bold 40px sans-serif';
-            ctx.fillText('3D DAILY NEWS', 665, 110);
+            ctx.font = 'bold 72px "Hiragino Mincho ProN", "MS Mincho", serif';
+            ctx.fillText('空間日報', 1540, 220);
 
-            // 日付・見出しライン
+            // 日付・号数（題字下部）
             ctx.fillStyle = '#00e1ff';
-            ctx.font = '24px monospace';
-            ctx.fillText('2026.09.22 | SPECIAL EDITION', 40, 70);
+            ctx.font = '36px sans-serif';
+            ctx.fillText('2026年 (令和8年) 9月22日 火曜日', 100, 120);
+            ctx.fillText('第32405号 | 3D HOLOGRAPHIC NEWSPAPER', 100, 180);
 
-            // 記事本文ライン（ハイコントラスト表示）
-            ctx.fillStyle = '#666666';
+            // 区切り太線
+            ctx.strokeStyle = '#00e1ff';
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(80, 350);
+            ctx.lineTo(1968, 350);
+            ctx.stroke();
+
+            // --- メインニュース領域 ---
+            // メイン大見出し（黒背景に浮き出るグリーン文字）
+            ctx.fillStyle = '#00ff88';
+            ctx.font = 'bold 88px "Hiragino Sans", "Meiryo", sans-serif';
+            ctx.fillText('新時代へ 3Dホログラム新聞始動', 80, 480);
+
+            // サブ見出し
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 52px sans-serif';
+            ctx.fillText('Q42規格とWebXRが融合 視覚表現の限界を突破', 80, 570);
+
+            // 記事本文グリッド（ダミー段組みラインを高精細描画）
+            ctx.fillStyle = '#444444';
+            // 右カラム記事ブロック
+            for (let i = 0; i < 22; i++) {
+                ctx.fillRect(1000, 680 + (i * 36), 920, 14);
+            }
+            // 左下記事ブロック
+            ctx.fillStyle = '#00ff88';
+            ctx.font = 'bold 44px sans-serif';
+            ctx.fillText('【解説】立体空間における視認性とUIデザイン', 80, 1380);
+            
+            ctx.fillStyle = '#444444';
             for (let i = 0; i < 14; i++) {
-                ctx.fillRect(500, 260 + (i * 32), 470, 8);
-            }
-            for (let i = 0; i < 10; i++) {
-                ctx.fillRect(40, 680 + (i * 28), 930, 6);
+                ctx.fillRect(80, 1430 + (i * 36), 1840, 14);
             }
 
+            // Canvasテクスチャ作成
             const paperTexture = new THREE.CanvasTexture(paperCanvas);
+            paperTexture.minFilter = THREE.LinearFilter;
+            paperTexture.magFilter = THREE.LinearFilter;
+
+            // ベース紙面メッシュ（Z: 0cm）
             const baseGeo = new THREE.PlaneGeometry(0.8, 0.8);
             const baseMat = new THREE.MeshBasicMaterial({ map: paperTexture, side: THREE.DoubleSide });
             const baseMesh = new THREE.Mesh(baseGeo, baseMat);
             newspaperGroup.add(baseMesh);
 
-            // --- 2. 飛び出す立体3D文字（TextGeometry） ---
+            // ==========================================
+            // 2. 飛び出す立体3D文字（Z: +6cm）
+            // ==========================================
             const loader = new THREE.FontLoader();
-            // Google Open Source Font
             loader.load('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/fonts/helvetiker_bold.typeface.json', function (font) {
                 const textGeo = new THREE.TextGeometry('3D NEWSPAPER', {
                     font: font,
-                    size: 0.05,
-                    height: 0.015, // 奥行き・厚み
+                    size: 0.048,
+                    height: 0.018,
                     curveSegments: 12,
                     bevelEnabled: true,
                     bevelThickness: 0.002,
@@ -136,17 +173,19 @@
 
                 const textMat = new THREE.MeshStandardMaterial({
                     color: 0x00ff88,
-                    emissive: 0x004422,
+                    emissive: 0x003311,
                     metalness: 0.8,
                     roughness: 0.2
                 });
 
                 const textMesh = new THREE.Mesh(textGeo, textMat);
-                textMesh.position.set(-0.36, 0.22, 0.06); // 手前6cmに配置
+                textMesh.position.set(-0.36, 0.21, 0.06);
                 newspaperGroup.add(textMesh);
             });
 
-            // --- 3. 手前に最前面で浮遊するホログラムフォトカード（Z: +12cm） ---
+            // ==========================================
+            // 3. 最前面 ホログラムフォトフレーム（Z: +12cm）
+            // ==========================================
             const cardCanvas = document.createElement('canvas');
             cardCanvas.width = 512;
             cardCanvas.height = 512;
@@ -166,7 +205,8 @@
             cCtx.fillStyle = '#ffffff';
             cCtx.font = 'bold 36px sans-serif';
             cCtx.textAlign = 'center';
-            cCtx.fillText('HOLOGRAM PHOTO', 256, 270);
+            cCtx.fillText('2048px HIGH-RES', 256, 250);
+            cCtx.fillText('HOLOGRAM PHOTO', 256, 300);
 
             const cardTexture = new THREE.CanvasTexture(cardCanvas);
             const cardGeo = new THREE.BoxGeometry(0.3, 0.3, 0.02);
@@ -177,10 +217,12 @@
             });
 
             photoCard = new THREE.Mesh(cardGeo, cardMat);
-            photoCard.position.set(-0.18, -0.08, 0.12); // 最前面12cm
+            photoCard.position.set(-0.2, -0.05, 0.12);
             newspaperGroup.add(photoCard);
 
-            // WebXR 起動
+            // ==========================================
+            // 4. WebXR 起動
+            // ==========================================
             const vrBtn = document.getElementById('enter-vr-btn');
             if ('xr' in navigator) {
                 navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
@@ -209,12 +251,11 @@
 
         function render(time) {
             if (newspaperGroup) {
-                newspaperGroup.rotation.y = Math.sin(time * 0.0008) * 0.15; // 左右に低速首振り
+                newspaperGroup.rotation.y = Math.sin(time * 0.0008) * 0.12; // 首振りアニメーション
             }
             if (photoCard) {
-                // 最前面のフォトカードがわずかに上下に浮遊＋自転
-                photoCard.position.y = -0.08 + Math.sin(time * 0.002) * 0.02;
-                photoCard.rotation.y = Math.sin(time * 0.001) * 0.2;
+                photoCard.position.y = -0.05 + Math.sin(time * 0.002) * 0.015; // 浮遊
+                photoCard.rotation.y = Math.sin(time * 0.001) * 0.15;
             }
             renderer.render(scene, camera);
         }
