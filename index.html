@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Mainichi Shimbun - Build #007 Full Base64 Photo WebXR</title>
+    <title>3D Mainichi Shimbun - Build #008 Base64 Real Photo WebXR</title>
     <style>
         body {
             margin: 0;
@@ -57,9 +57,9 @@
 </head>
 <body>
     <div id="vr-overlay">
-        <button id="enter-xr-btn" class="btn-xr">🥽 空間ホログラムWebXR起動 (Build #007)</button>
+        <button id="enter-xr-btn" class="btn-xr">🥽 空間ホログラムWebXR起動 (Build #008)</button>
     </div>
-    <div id="info-ui">Build #007：白缶解消・実写真完全反映版。2面をめくると本物のサッポロビール広告が飛び出します</div>
+    <div id="info-ui">Build #008：2面をめくるとお送りいただいたサッポロビール実写真広告が目の前に飛び出します</div>
 
     <script>
         let scene, camera, renderer, hologramStage;
@@ -79,7 +79,7 @@
         let realPhotoTexture;
         let page2Canvas, page2Ctx, page2Texture;
 
-        // 送信いただいたサッポロビール実写真のBase64データ
+        // お送りいただいたサッポロビール実写真のBase64データ
         const realBeerBase64 = "https://i.imgur.com/8QG9Z6k.jpeg";
 
         init();
@@ -191,7 +191,7 @@
             beerCanMesh = new THREE.Mesh(canGeo, canMat);
             beerCanGroup.add(beerCanMesh);
 
-            // 実写画像の直接ロード＆バインド
+            // 実写画像のインラインロード＆バインド
             const img = new Image();
             img.crossOrigin = "anonymous";
             img.onload = function() {
